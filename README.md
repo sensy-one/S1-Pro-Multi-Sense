@@ -68,7 +68,7 @@ To get the most accurate presence and environmental readings, it's important to 
 
 **Recommended mounting height:**
 - 1.25 to 1.50 meters from the floor (typical seated/standing person height)
-- Higher is possible — just tilt the sensor downward to cover the detection areadetection.
+- Higher is possible — just tilt the sensor downward to cover the detection area.
 
 **Placement tips:**
 - Ensure a clear line of sight to the monitored area — walls, plants, or furniture can reduce accuracy.
