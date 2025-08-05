@@ -1,0 +1,1139 @@
+esphome:
+  name: "s1-pro-multi-sense"
+  friendly_name: "S1 Pro Multi Sense"
+  name_add_mac_suffix: true
+  project:
+    name: "Sensy-One.S1 Pro Multi Sense"
+    version: "v1.0.0"
+  on_boot:
+    then:
+      - light.turn_on:
+          id: ws2812_LED
+          effect: "Red Breathing"
+
+external_components:
+  - source:
+      type: local
+      path: components
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+
+wifi:
+  ap:
+    ssid: "I am Sensy!"
+    ap_timeout: 1min
+
+captive_portal: 
+
+esp32_improv:
+  authorizer: none
+  identify_duration: 10s
+  wifi_timeout: 1min
+
+logger:
+  level: ERROR
+
+api:
+  on_client_connected:
+    - light.turn_off:
+        id: ws2812_LED
+
+    - light.turn_on:
+        id: ws2812_LED
+        red: 0%
+        green: 100%
+        blue: 0%
+        brightness: 100%
+
+ota:
+  platform: esphome
+
+web_server:
+  port: 80
+  log: false
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO21
+  rx_pin: GPIO20
+  baud_rate: 256000
+
+i2c:
+  id: i2c_bus
+  sda: GPIO5
+  scl: GPIO6
+  scan: true
+
+output:
+  - platform: ledc
+    id: mlt8530_buzzer
+    pin: GPIO7
+    frequency: 2700 Hz
+    inverted: false
+
+bme68x_bsec2_i2c:
+  i2c_id: i2c_bus
+  id: bsec_virtual_sensor
+  address: 0x76
+  model: bme688
+  sample_rate: LP
+  supply_voltage: 3.3V
+  state_save_interval: 6h
+  operating_age: 28d
+
+globals:
+  - id: flip_y_state
+    type: bool
+    restore_value: true
+    initial_value: 'false'
+
+light:
+  - platform: esp32_rmt_led_strip
+    name: "WS2812 | LED"
+    entity_category: config
+    id: ws2812_LED
+    chipset: WS2812
+    pin: GPIO3
+    num_leds: 1
+    rgb_order: GRB
+    effects:
+      - addressable_lambda:
+          name: "Red Breathing"
+          update_interval: 50ms
+          lambda: |-
+            static float phase = 0.0f;
+            phase += 0.02f;
+            if (phase > 1.0f) phase -= 1.0f;
+            float s = (sin(phase * 2.0f * 3.14159f) + 1.0f) * 0.5f;
+            float brightness = s * 0.8f + 0.2f;
+            uint8_t val = (uint8_t)(brightness * 255.0f);
+            for (size_t i = 0; i < it.size(); i++) {
+              it[i] = Color(val, 0, 0);
+            }
+
+button:
+  - platform: template
+    name: "RADAR | Flip Y Axis"
+    entity_category: config
+    icon: "mdi:axis-y-rotate-clockwise"
+    on_press:
+      then:
+        - lambda: |-
+            id(flip_y_state) = !id(flip_y_state);
+        - if:
+            condition:
+              lambda: 'return id(flip_y_state);'
+            then:
+              - switch.template.publish:
+                  id: flip_y
+                  state: true
+            else:
+              - switch.template.publish:
+                  id: flip_y
+                  state: false
+                  
+  - platform: factory_reset
+    name: "ESP32 | Factory Reset"
+    entity_category: config
+    icon: mdi:factory
+
+  - platform: restart
+    name: "ESP32 | Restart Module"
+    id: restart_btn
+    entity_category: config
+    icon: mdi:restart
+
+  - platform: template
+    name: "RADAR | Single Target"
+    entity_category: config
+    icon: mdi:account
+    on_press:
+      then:
+        - lambda: |-
+            id(s1_sensor)->set_single_target_tracking();
+
+  - platform: template
+    name: "RADAR | Multi Target"
+    entity_category: config
+    icon: mdi:account-group
+    on_press:
+      then:
+        - lambda: |-
+            id(s1_sensor)->set_multi_target_tracking();
+
+  - platform: template
+    name: "RADAR | Restart Module"
+    icon: mdi:restart
+    entity_category: config
+    on_press:
+      then:
+        - lambda: |-
+            id(s1_sensor)->restart_module();
+
+  - platform: template
+    name: "RADAR | Factory Reset"
+    icon: mdi:factory
+    entity_category: config
+    on_press:
+      then:
+        - lambda: |-
+            id(s1_sensor)->restore_factory_settings();
+        - delay: 250ms
+        - lambda: |-
+            id(s1_sensor)->restart_module();
+
+  - platform: template
+    name: "SCD40 | Forced Calibration"
+    icon: "mdi:tune"
+    entity_category: config
+    on_press:
+      - scd4x.perform_forced_calibration:
+          id: scd40_sensor
+          value: 426           
+
+  - platform: template
+    name: "SCD40 | Factory Reset"
+    icon: "mdi:factory"
+    entity_category: config
+    on_press:
+      - scd4x.factory_reset: scd40_sensor
+      - delay: 250ms
+      - button.press: restart_btn
+
+switch:
+  - platform: template
+    id: flip_y
+    optimistic: true
+    internal: true
+
+  - platform: template
+    name: "MLT8530 | Buzzer"
+    icon: mdi:surround-sound
+    entity_category: config
+    optimistic: true
+    turn_on_action:
+      - output.set_level:
+          id: mlt8530_buzzer
+          level: 0.50
+    turn_off_action:
+      - output.set_level:
+          id: mlt8530_buzzer
+          level: 0.0
+
+sensor:
+  - platform: s1_pro
+    id: s1_sensor
+    target1_x:
+      name: "Target 1 X"
+      id: target1_x
+      icon: mdi:alpha-x-box-outline
+      unit_of_measurement: "cm"
+    target1_y:
+      name: "Target 1 Y"
+      id: target1_y
+      icon: mdi:alpha-y-box-outline
+      unit_of_measurement: "cm"
+    target1_angle:
+      name: "Target 1 Angle"
+      id: target1_angle
+      icon: mdi:format-text-rotation-angle-up
+      unit_of_measurement: "°"
+    target1_speed:
+      name: "Target 1 Speed"
+      id: target1_speed
+      icon: mdi:speedometer
+      unit_of_measurement: "cm/s"
+    target1_distance:
+      name: "Target 1 Distance"
+      id: target1_distance
+      icon: mdi:map-marker-distance
+      unit_of_measurement: "cm"
+    target2_x:
+      name: "Target 2 X"
+      id: target2_x
+      icon: mdi:alpha-x-box-outline
+      unit_of_measurement: "cm"
+    target2_y:
+      name: "Target 2 Y"
+      id: target2_y
+      icon: mdi:alpha-y-box-outline
+      unit_of_measurement: "cm"
+    target2_angle:
+      name: "Target 2 Angle"
+      id: target2_angle
+      icon: mdi:format-text-rotation-angle-up
+      unit_of_measurement: "°"
+    target2_speed:
+      name: "Target 2 Speed"
+      id: target2_speed
+      icon: mdi:speedometer
+      unit_of_measurement: "cm/s"
+    target2_distance:
+      name: "Target 2 Distance"
+      id: target2_distance
+      icon: mdi:map-marker-distance
+      unit_of_measurement: "cm"
+    target3_x:
+      name: "Target 3 X"
+      id: target3_x
+      icon: mdi:alpha-x-box-outline
+      unit_of_measurement: "cm"
+    target3_y:
+      name: "Target 3 Y"
+      id: target3_y
+      icon: mdi:alpha-y-box-outline
+      unit_of_measurement: "cm"
+    target3_angle:
+      name: "Target 3 Angle"
+      id: target3_angle
+      icon: mdi:format-text-rotation-angle-up
+      unit_of_measurement: "°"
+    target3_speed:
+      name: "Target 3 Speed"
+      id: target3_speed
+      icon: mdi:speedometer
+      unit_of_measurement: "cm/s"
+    target3_distance:
+      name: "Target 3 Distance"
+      id: target3_distance
+      icon: mdi:map-marker-distance
+      unit_of_measurement: "cm"
+    detection_range: detection_range
+    flip_y: flip_y
+    exclusion_x_begin: exclusion_x_begin
+    exclusion_x_end: exclusion_x_end
+    exclusion_y_begin: exclusion_y_begin
+    exclusion_y_end: exclusion_y_end
+
+    tracking_mode:
+      name: "RADAR | Tracking Mode"
+      id: radar_tracking_mode
+      entity_category: diagnostic
+      icon: mdi:radar
+
+  - platform: template
+    name: "All Targets Count"
+    icon: mdi:counter
+    id: all_targets_count
+    unit_of_measurement: ""
+    update_interval: 250ms
+    lambda: |-
+      int count = 0;
+      if (id(target1_distance).state > 0) count++;
+      if (id(target2_distance).state > 0) count++;
+      if (id(target3_distance).state > 0) count++;
+      return count;
+
+  - platform: template
+    name: "Zone 1 Target Count"
+    icon: mdi:counter
+    id: zone1_target_count
+    unit_of_measurement: ""
+    update_interval: 250ms
+    lambda: |-
+      int count = 0;
+      if (id(target1_distance).state > 0 &&
+          id(target1_x).state >= id(zone1_x_begin).state &&
+          id(target1_x).state <= id(zone1_x_end).state &&
+          id(target1_y).state >= id(zone1_y_begin).state &&
+          id(target1_y).state <= id(zone1_y_end).state) count++;
+      if (id(target2_distance).state > 0 &&
+          id(target2_x).state >= id(zone1_x_begin).state &&
+          id(target2_x).state <= id(zone1_x_end).state &&
+          id(target2_y).state >= id(zone1_y_begin).state &&
+          id(target2_y).state <= id(zone1_y_end).state) count++;
+      if (id(target3_distance).state > 0 &&
+          id(target3_x).state >= id(zone1_x_begin).state &&
+          id(target3_x).state <= id(zone1_x_end).state &&
+          id(target3_y).state >= id(zone1_y_begin).state &&
+          id(target3_y).state <= id(zone1_y_end).state) count++;
+      return count;
+
+  - platform: template
+    name: "Zone 2 Target Count"
+    icon: mdi:counter
+    id: zone2_target_count
+    unit_of_measurement: ""
+    update_interval: 250ms
+    lambda: |-
+      int count = 0;
+      if (id(target1_distance).state > 0 &&
+          id(target1_x).state >= id(zone2_x_begin).state &&
+          id(target1_x).state <= id(zone2_x_end).state &&
+          id(target1_y).state >= id(zone2_y_begin).state &&
+          id(target1_y).state <= id(zone2_y_end).state) count++;
+      if (id(target2_distance).state > 0 &&
+          id(target2_x).state >= id(zone2_x_begin).state &&
+          id(target2_x).state <= id(zone2_x_end).state &&
+          id(target2_y).state >= id(zone2_y_begin).state &&
+          id(target2_y).state <= id(zone2_y_end).state) count++;
+      if (id(target3_distance).state > 0 &&
+          id(target3_x).state >= id(zone2_x_begin).state &&
+          id(target3_x).state <= id(zone2_x_end).state &&
+          id(target3_y).state >= id(zone2_y_begin).state &&
+          id(target3_y).state <= id(zone2_y_end).state) count++;
+      return count;
+
+  - platform: template
+    name: "Zone 3 Target Count"
+    icon: mdi:counter
+    id: zone3_target_count
+    unit_of_measurement: ""
+    update_interval: 250ms
+    lambda: |-
+      int count = 0;
+      if (id(target1_distance).state > 0 &&
+          id(target1_x).state >= id(zone3_x_begin).state &&
+          id(target1_x).state <= id(zone3_x_end).state &&
+          id(target1_y).state >= id(zone3_y_begin).state &&
+          id(target1_y).state <= id(zone3_y_end).state) count++;
+      if (id(target2_distance).state > 0 &&
+          id(target2_x).state >= id(zone3_x_begin).state &&
+          id(target2_x).state <= id(zone3_x_end).state &&
+          id(target2_y).state >= id(zone3_y_begin).state &&
+          id(target2_y).state <= id(zone3_y_end).state) count++;
+      if (id(target3_distance).state > 0 &&
+          id(target3_x).state >= id(zone3_x_begin).state &&
+          id(target3_x).state <= id(zone3_x_end).state &&
+          id(target3_y).state >= id(zone3_y_begin).state &&
+          id(target3_y).state <= id(zone3_y_end).state) count++;
+      return count;
+
+  - platform: internal_temperature
+    name: "ESP32 | Temperature"
+    entity_category: diagnostic
+    icon: mdi:thermometer
+
+  - platform: scd4x
+    id: scd40_sensor
+    measurement_mode: periodic
+    automatic_self_calibration: false
+    co2:
+      name: "SCD40 CO₂ Concentration"
+      id: scd_co2
+      unit_of_measurement: "ppm"
+      icon: "mdi:molecule-co2"      
+    temperature:
+      name: "SCD40 Temperature"
+      id: scd_temperature
+      filters:
+        - lambda: return x - id(scd40_temperature_offset).state;
+      unit_of_measurement: "°C"
+      icon: "mdi:thermometer"
+    humidity:
+      name: "SCD40 Humidity"
+      id: scd_humidity
+      filters:
+        - lambda: return x - id(scd40_humidity_offset).state;
+      unit_of_measurement: "%"
+      icon: "mdi:water-percent"
+
+  - platform: bme68x_bsec2
+    temperature:
+      name: "BME688 Temperature"
+      filters:
+        - lambda: return x - id(bme688_temperature_offset).state;
+      sample_rate: LP
+    pressure:
+      name: "BME688 Pressure"
+      sample_rate: LP
+    humidity:
+      name: "BME688 Humidity"
+      filters:
+        - lambda: return x - id(bme688_humidity_offset).state;
+      sample_rate: LP
+    gas_resistance:
+      name: "BME688 Gas Resistance"
+    iaq:
+      name: "BME688 IAQ"
+      id: iaq
+    co2_equivalent:
+      name: "BME688 CO₂ Equivalent"
+    breath_voc_equivalent:
+      name: "BME688 VOC Equivalent"
+
+  - platform: ltr390
+    i2c_id: i2c_bus
+    update_interval: 1s
+    light:
+      name: "LTR390 Ambient Light (lux)"
+      icon: mdi:brightness-5
+      filters:
+        - lambda: |-
+            return x - id(ltr390_lux_offset).state;
+    uv_index:
+      name: "LTR390 UV Index"
+      icon: mdi:weather-sunset
+      filters:
+        - lambda: |-
+            return x - id(ltr390_uv_offset).state;
+    gain:
+      ambient_light: X1
+      uv: X18
+    resolution:
+      ambient_light: 20
+      uv: 20
+
+  - platform: wifi_signal
+    name: "ESP32 RSSI"
+    internal: true
+    id: wifi_rssi_raw
+    update_interval: 1s
+
+number:
+  - platform: template
+    name: "Any Presence Delay"
+    icon: mdi:timer-outline
+    id: presence_delay
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    name: "Any Movement Threshold"
+    icon: mdi:motion-sensor
+    id: movement_threshold
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 5000
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    name: "Detection Range"
+    icon: mdi:signal-distance-variant
+    id: detection_range
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 600
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_x_begin
+    name: "Exclusion X Begin"
+    icon: mdi:arrow-collapse-left
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_x_end
+    name: "Exclusion X End"
+    icon: mdi:arrow-collapse-right
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_y_begin
+    name: "Exclusion Y Begin"
+    icon: mdi:arrow-collapse-up
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_y_end
+    name: "Exclusion Y End"
+    icon: mdi:arrow-collapse-down
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_x_begin
+    name: "Zone 1 X Begin"
+    icon: mdi:arrow-collapse-left
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_x_end
+    name: "Zone 1 X End"
+    icon: mdi:arrow-collapse-right
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_y_begin
+    name: "Zone 1 Y Begin"
+    icon: mdi:arrow-collapse-up
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    id: zone1_y_end
+    name: "Zone 1 Y End"
+    icon: mdi:arrow-collapse-down
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_movement_threshold
+    name: "Zone 1 Movement Threshold"
+    icon: mdi:motion-sensor
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 5000
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_presence_delay
+    name: "Zone 1 Presence Delay"
+    icon: mdi:timer-outline
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_x_begin
+    name: "Zone 2 X Begin"
+    icon: mdi:arrow-collapse-left
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_x_end
+    name: "Zone 2 X End"
+    icon: mdi:arrow-collapse-right
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_y_begin
+    name: "Zone 2 Y Begin"
+    icon: mdi:arrow-collapse-up
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_y_end
+    name: "Zone 2 Y End"
+    icon: mdi:arrow-collapse-down
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_movement_threshold
+    name: "Zone 2 Movement Threshold"
+    icon: mdi:motion-sensor
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 5000
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_presence_delay
+    name: "Zone 2 Presence Delay"
+    icon: mdi:timer-outline
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_x_begin
+    name: "Zone 3 X Begin"
+    icon: mdi:arrow-collapse-left
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_x_end
+    name: "Zone 3 X End"
+    icon: mdi:arrow-collapse-right
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_y_begin
+    name: "Zone 3 Y Begin"
+    icon: mdi:arrow-collapse-up
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_y_end
+    name: "Zone 3 Y End"
+    icon: mdi:arrow-collapse-down
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_movement_threshold
+    name: "Zone 3 Movement Threshold"
+    icon: mdi:motion-sensor
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 5000
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_presence_delay
+    name: "Zone 3 Presence Delay"
+    icon: mdi:timer-outline
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: scd40_temperature_offset
+    name: SCD41 Temperature Offset
+    icon: mdi:thermometer
+    unit_of_measurement: "°C"
+    min_value: -50
+    max_value: 50
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: scd40_humidity_offset
+    name: SCD41 Humidity Offset
+    icon: mdi:water-percent
+    unit_of_measurement: "%"
+    min_value: -50
+    max_value: 50
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: bme688_temperature_offset
+    name: BME688 Temperature Offset
+    icon: mdi:thermometer
+    unit_of_measurement: "°C"
+    min_value: -50
+    max_value: 50
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: bme688_humidity_offset
+    name: BME688 Humidity Offset
+    icon: mdi:water-percent
+    unit_of_measurement: "%"
+    min_value: -50
+    max_value: 50
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: ltr390_lux_offset
+    name: "LTR390 Lux Offset"
+    icon: mdi:brightness-5
+    unit_of_measurement: "lux"
+    min_value: -10000
+    max_value: 10000
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: ltr390_uv_offset
+    name: "LTR390 UV Offset"
+    icon: mdi:weather-sunset
+    unit_of_measurement: "index"
+    min_value: -50
+    max_value: 50
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+binary_sensor:
+  - platform: status
+    name: "ESP32 | Status"
+    entity_category: diagnostic
+
+  - platform: template
+    name: "Any Presence"
+    icon: mdi:home-account
+    device_class: presence
+    lambda: |-
+      static unsigned long last_off = 0;
+      bool present = id(target1_distance).state > 0 ||
+                     id(target2_distance).state > 0 ||
+                     id(target3_distance).state > 0;
+      unsigned long now = millis();
+      if (present) {
+        last_off = now;
+        return true;
+      }
+      return (now - last_off) < (unsigned long)(id(presence_delay).state * 1000.0);
+
+  - platform: template
+    name: "Any Movement"
+    icon: mdi:motion-sensor
+    device_class: motion
+    lambda: |-
+      float thresh = id(movement_threshold).state;
+      return (std::abs(id(target1_speed).state) > thresh) ||
+             (std::abs(id(target2_speed).state) > thresh) ||
+             (std::abs(id(target3_speed).state) > thresh);
+
+  - platform: template
+    name: "Zone 1 Presence"
+    icon: mdi:home-account
+    device_class: presence
+    lambda: |-
+      static unsigned long last_off_1 = 0;
+      unsigned long now = millis();
+      bool pres1 = (id(target1_distance).state > 0 &&
+                   id(target1_x).state >= id(zone1_x_begin).state &&
+                   id(target1_x).state <= id(zone1_x_end).state &&
+                   id(target1_y).state >= id(zone1_y_begin).state &&
+                   id(target1_y).state <= id(zone1_y_end).state)
+                || (id(target2_distance).state > 0 &&
+                   id(target2_x).state >= id(zone1_x_begin).state &&
+                   id(target2_x).state <= id(zone1_x_end).state &&
+                   id(target2_y).state >= id(zone1_y_begin).state &&
+                   id(target2_y).state <= id(zone1_y_end).state)
+                || (id(target3_distance).state > 0 &&
+                   id(target3_x).state >= id(zone1_x_begin).state &&
+                   id(target3_x).state <= id(zone1_x_end).state &&
+                   id(target3_y).state >= id(zone1_y_begin).state &&
+                   id(target3_y).state <= id(zone1_y_end).state);
+      if (pres1) {
+        last_off_1 = now;
+        return true;
+      }
+      return (now - last_off_1) < (unsigned long)(id(zone1_presence_delay).state * 1000.0);
+
+  - platform: template
+    name: "Zone 1 Movement"
+    icon: mdi:motion-sensor
+    device_class: motion
+    lambda: |-
+      float thresh1 = id(zone1_movement_threshold).state;
+      bool mov1 = (std::abs(id(target1_speed).state) > thresh1 &&
+                   id(target1_distance).state > 0 &&
+                   id(target1_x).state >= id(zone1_x_begin).state &&
+                   id(target1_x).state <= id(zone1_x_end).state &&
+                   id(target1_y).state >= id(zone1_y_begin).state &&
+                   id(target1_y).state <= id(zone1_y_end).state)
+               || (std::abs(id(target2_speed).state) > thresh1 &&
+                   id(target2_distance).state > 0 &&
+                   id(target2_x).state >= id(zone1_x_begin).state &&
+                   id(target2_x).state <= id(zone1_x_end).state &&
+                   id(target2_y).state >= id(zone1_y_begin).state &&
+                   id(target2_y).state <= id(zone1_y_end).state)
+               || (std::abs(id(target3_speed).state) > thresh1 &&
+                   id(target3_distance).state > 0 &&
+                   id(target3_x).state >= id(zone1_x_begin).state &&
+                   id(target3_x).state <= id(zone1_x_end).state &&
+                   id(target3_y).state >= id(zone1_y_begin).state &&
+                   id(target3_y).state <= id(zone1_y_end).state);
+      return mov1;
+
+  - platform: template
+    name: "Zone 2 Presence"
+    icon: mdi:home-account
+    device_class: presence
+    lambda: |-
+      static unsigned long last_off_2 = 0;
+      unsigned long now = millis();
+      bool pres2 = (id(target1_distance).state > 0 &&
+                   id(target1_x).state >= id(zone2_x_begin).state &&
+                   id(target1_x).state <= id(zone2_x_end).state &&
+                   id(target1_y).state >= id(zone2_y_begin).state &&
+                   id(target1_y).state <= id(zone2_y_end).state)
+                || (id(target2_distance).state > 0 &&
+                   id(target2_x).state >= id(zone2_x_begin).state &&
+                   id(target2_x).state <= id(zone2_x_end).state &&
+                   id(target2_y).state >= id(zone2_y_begin).state &&
+                   id(target2_y).state <= id(zone2_y_end).state)
+                || (id(target3_distance).state > 0 &&
+                   id(target3_x).state >= id(zone2_x_begin).state &&
+                   id(target3_x).state <= id(zone2_x_end).state &&
+                   id(target3_y).state >= id(zone2_y_begin).state &&
+                   id(target3_y).state <= id(zone2_y_end).state);
+      if (pres2) {
+        last_off_2 = now;
+        return true;
+      }
+      return (now - last_off_2) < (unsigned long)(id(zone2_presence_delay).state * 1000.0);
+
+  - platform: template
+    name: "Zone 2 Movement"
+    icon: mdi:motion-sensor
+    device_class: motion
+    lambda: |-
+      float thresh2 = id(zone2_movement_threshold).state;
+      bool mov2 = (std::abs(id(target1_speed).state) > thresh2 &&
+                   id(target1_distance).state > 0 &&
+                   id(target1_x).state >= id(zone2_x_begin).state &&
+                   id(target1_x).state <= id(zone2_x_end).state &&
+                   id(target1_y).state >= id(zone2_y_begin).state &&
+                   id(target1_y).state <= id(zone2_y_end).state)
+               || (std::abs(id(target2_speed).state) > thresh2 &&
+                   id(target2_distance).state > 0 &&
+                   id(target2_x).state >= id(zone2_x_begin).state &&
+                   id(target2_x).state <= id(zone2_x_end).state &&
+                   id(target2_y).state >= id(zone2_y_begin).state &&
+                   id(target2_y).state <= id(zone2_y_end).state)
+               || (std::abs(id(target3_speed).state) > thresh2 &&
+                   id(target3_distance).state > 0 &&
+                   id(target3_x).state >= id(zone2_x_begin).state &&
+                   id(target3_x).state <= id(zone2_x_end).state &&
+                   id(target3_y).state >= id(zone2_y_begin).state &&
+                   id(target3_y).state <= id(zone2_y_end).state);
+      return mov2;
+
+  - platform: template
+    name: "Zone 3 Presence"
+    icon: mdi:home-account
+    device_class: presence
+    lambda: |-
+      static unsigned long last_off_3 = 0;
+      unsigned long now = millis();
+      bool pres3 = (id(target1_distance).state > 0 &&
+                   id(target1_x).state >= id(zone3_x_begin).state &&
+                   id(target1_x).state <= id(zone3_x_end).state &&
+                   id(target1_y).state >= id(zone3_y_begin).state &&
+                   id(target1_y).state <= id(zone3_y_end).state)
+                || (id(target2_distance).state > 0 &&
+                   id(target2_x).state >= id(zone3_x_begin).state &&
+                   id(target2_x).state <= id(zone3_x_end).state &&
+                   id(target2_y).state >= id(zone3_y_begin).state &&
+                   id(target2_y).state <= id(zone3_y_end).state)
+                || (id(target3_distance).state > 0 &&
+                   id(target3_x).state >= id(zone3_x_begin).state &&
+                   id(target3_x).state <= id(zone3_x_end).state &&
+                   id(target3_y).state >= id(zone3_y_begin).state &&
+                   id(target3_y).state <= id(zone3_y_end).state);
+      if (pres3) {
+        last_off_3 = now;
+        return true;
+      }
+      return (now - last_off_3) < (unsigned long)(id(zone3_presence_delay).state * 1000.0);
+
+  - platform: template
+    name: "Zone 3 Movement"
+    icon: mdi:motion-sensor
+    device_class: motion
+    lambda: |-
+      float thresh3 = id(zone3_movement_threshold).state;
+      bool mov3 = (std::abs(id(target1_speed).state) > thresh3 &&
+                   id(target1_distance).state > 0 &&
+                   id(target1_x).state >= id(zone3_x_begin).state &&
+                   id(target1_x).state <= id(zone3_x_end).state &&
+                   id(target1_y).state >= id(zone3_y_begin).state &&
+                   id(target1_y).state <= id(zone3_y_end).state)
+               || (std::abs(id(target2_speed).state) > thresh3 &&
+                   id(target2_distance).state > 0 &&
+                   id(target2_x).state >= id(zone3_x_begin).state &&
+                   id(target2_x).state <= id(zone3_x_end).state &&
+                   id(target2_y).state >= id(zone3_y_begin).state &&
+                   id(target2_y).state <= id(zone3_y_end).state)
+               || (std::abs(id(target3_speed).state) > thresh3 &&
+                   id(target3_distance).state > 0 &&
+                   id(target3_x).state >= id(zone3_x_begin).state &&
+                   id(target3_x).state <= id(zone3_x_end).state &&
+                   id(target3_y).state >= id(zone3_y_begin).state &&
+                   id(target3_y).state <= id(zone3_y_end).state);
+      return mov3;
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "ESP32 | IP"
+      entity_category: diagnostic
+      icon: mdi:ip-network
+
+  - platform: wifi_info
+    ssid:
+      name: "ESP32 | SSID"
+      entity_category: diagnostic
+      icon: mdi:wifi-settings
+
+  - platform: template
+    name: "ESP32 | WiFi Strength"
+    entity_category: diagnostic
+    icon: "mdi:signal-cellular-3"
+    update_interval: 1s
+    lambda: |-
+      int rssi = int(id(wifi_rssi_raw).state);
+      if (rssi < -90)      return {"Very Weak"};
+      else if (rssi < -80) return {"Weak"};
+      else if (rssi < -70) return {"Moderate"};
+      else if (rssi < -60) return {"Strong"};
+      else                  return {"Very Strong"};
+
+  - platform: bme68x_bsec2
+    iaq_accuracy:
+      name: "BME688 IAQ Accuracy"
+
+  - platform: template
+    name: "BME688 IAQ Classification"
+    icon: mdi:air-filter
+    lambda: |-
+      if ( int(id(iaq).state) <= 50) {
+        return {"Excellent"};
+      }
+      else if (int(id(iaq).state) >= 51 && int(id(iaq).state) <= 100) {
+        return {"Good"};
+      }
+      else if (int(id(iaq).state) >= 101 && int(id(iaq).state) <= 150) {
+        return {"Lightly polluted"};
+      }
+      else if (int(id(iaq).state) >= 151 && int(id(iaq).state) <= 200) {
+        return {"Moderately polluted"};
+      }
+      else if (int(id(iaq).state) >= 201 && int(id(iaq).state) <= 250) {
+        return {"Heavily polluted"};
+      }
+      else if (int(id(iaq).state) >= 251 && int(id(iaq).state) <= 350) {
+        return {"Severely polluted"};
+      }
+      else if (int(id(iaq).state) >= 351) {
+        return {"Extremely polluted"};
+      }
+      else {
+        return {"error"};
+      }
