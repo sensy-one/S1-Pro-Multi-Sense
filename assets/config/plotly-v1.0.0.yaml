@@ -106,7 +106,7 @@ entities:
     mode: markers+text
     marker:
       size: 12
-      color: lightblue
+      color: lightgrey
       symbol: circle-open
     text: >
       $ex ("T2 (" +
@@ -144,7 +144,7 @@ entities:
       parseInt(hass.states["sensor.replace_me_target_3_speed"].state)
       + " cm/s)")
     textfont:
-      color: lightgreen
+      color: lightgrey
     textposition: top center
     x:
       - |-
