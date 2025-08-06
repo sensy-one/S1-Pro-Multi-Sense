@@ -126,19 +126,19 @@ For faster or more precise calibration, you can use the Forced Calibration butto
 Visualize live presence data from the S1 Pro directly in your Home Assistant dashboard.  
 The Plotly Graph Card shows an interactive view of target positions, movement speed, and your defined zones — giving you instant insight into room activity.
 
-### Install HACS and the Plotly Graph Card
+**Install HACS and the Plotly Graph Card**
 - If you haven’t already installed HACS, follow the [Official instructions](https://www.hacs.xyz/docs/use/download/download/).
 - Once installed, open HACS from the sidebar in Home Assistant.  
 - Go to Frontend, search for Plotly Graph Card, and click Download . 
 - Refresh your browser after installation.
 
-### Add a Custom Plotly Graph Card
+**Add a Custom Plotly Graph Card**
 - Go to your Home Assistant dashboard and click Edit Dashboard.
 - Select Add Card, then choose Plotly Graph Card. 
 - Click Show Code Editor to open the YAML editor.
 - Copy and paste the custom configuration from the Copy and paste the custom configuration from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/plotly-v1.0.0.yaml) into the editor.
 
-### Replace the Placeholder IDs
+**Replace the Placeholder IDs**
 - In the YAML config, look for any replace_me placeholders.
 - Replace them with your device name, for example: s1_pro_multi_sense_4048c4.
 - If you renamed the device (for example to living_room), use that instead.
@@ -151,15 +151,15 @@ The Plotly Graph Card shows an interactive view of target positions, movement sp
 Set up custom zones right from your Home Assistant dashboard.  
 The S1 Pro currently supports up to 3 detection zones and 1 exclusion zone.
 
-### Set Horizontal Boundaries
+**Set Horizontal Boundaries**
 - X Begin: Enter the leftmost coordinate of your zone.  
 - X End: Enter the rightmost coordinate of your zone.
 
-### Set Vertical Boundaries
+**Set Vertical Boundaries**
 - Y Begin: Enter the top coordinate of your zone.  
 - Y End: Enter the bottom coordinate of your zone.
 
-### Example Configuration
+**Example Configuration**
 - X Begin: -125  
 - X End: 125  
 - Y Begin: 175  
@@ -172,7 +172,7 @@ The S1 Pro currently supports up to 3 detection zones and 1 exclusion zone.
 Keep your S1 Pro up to date with regular OTA updates.  
 We continuously improve performance and add new features to keep your device reliable and future-ready.
 
-### Install OTA Updates
+**Install OTA Updates**
 - Download the latest firmware from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/firmware/base/ota).
 - In Home Assistant, go to Devices and Services, ESPHome.
 - Select your S1 Pro and click Visit under Device Info to open the web interface. 
@@ -184,7 +184,7 @@ We continuously improve performance and add new features to keep your device rel
 
 If your sensor isn’t behaving as expected, a factory reset can help you start fresh.
 
-### Install Factory Firmware
+**Install Factory Firmware**
 - Download the latest factory firmware from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/firmware/base/facory).
 - Connect the sensor to your computer using a USB-C cable. 
 - Open the [ESPHome web wizard](https://web.esphome.io/?dashboard_wizard).
