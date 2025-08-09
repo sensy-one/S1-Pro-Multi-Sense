@@ -136,7 +136,7 @@ The Plotly Graph Card shows an interactive view of target positions, movement sp
 - Go to your Home Assistant dashboard and click Edit Dashboard.
 - Select Add Card, then choose Plotly Graph Card. 
 - Click Show Code Editor to open the YAML editor.
-- Copy and paste the custom configuration from the Copy and paste the custom configuration from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/plotly-v1.0.0.yaml) into the editor.
+- Copy and paste the custom configuration from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/plotly-v1.0.0.yaml) into the editor.
 
 **Replace the Placeholder IDs**
 - In the YAML config, look for any replace_me placeholders.
