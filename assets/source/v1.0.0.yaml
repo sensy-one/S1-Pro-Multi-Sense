@@ -82,7 +82,7 @@ bme68x_bsec2_i2c:
   sample_rate: LP
   supply_voltage: 3.3V
   state_save_interval: 6h
-  operating_age: 28d
+  operating_age: 4d 
 
 globals:
   - id: flip_y_state
@@ -411,6 +411,7 @@ sensor:
     id: scd40_sensor
     measurement_mode: periodic
     automatic_self_calibration: false
+    ambient_pressure_compensation_source: bme_pressure
     co2:
       name: "SCD40 CO₂ Concentration"
       id: scd_co2
@@ -439,6 +440,7 @@ sensor:
       sample_rate: LP
     pressure:
       name: "BME688 Pressure"
+      id: bme_pressure
       sample_rate: LP
     humidity:
       name: "BME688 Humidity"
@@ -810,20 +812,20 @@ number:
 
   - platform: template
     id: scd40_temperature_offset
-    name: SCD41 Temperature Offset
+    name: SCD40 Temperature Offset
     icon: mdi:thermometer
     unit_of_measurement: "°C"
     min_value: -50
     max_value: 50
     step: 0.1
-    initial_value: 0
+    initial_value: 14.5
     optimistic: true
     restore_value: true
     mode: box
 
   - platform: template
     id: scd40_humidity_offset
-    name: SCD41 Humidity Offset
+    name: SCD40 Humidity Offset
     icon: mdi:water-percent
     unit_of_measurement: "%"
     min_value: -50
@@ -842,7 +844,7 @@ number:
     min_value: -50
     max_value: 50
     step: 0.1
-    initial_value: 0
+    initial_value: 14.5
     optimistic: true
     restore_value: true
     mode: box
