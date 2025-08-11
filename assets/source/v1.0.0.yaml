@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.0.0"
+    version: "v1.0.1"
   on_boot:
     then:
       - light.turn_on:
