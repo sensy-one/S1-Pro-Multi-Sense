@@ -67,7 +67,7 @@ The integrated Lite-On LTR-390UV sensor measures both illuminance (Lux) and UV i
 To get the most accurate presence and environmental readings, it's important to place the S1 Pro correctly.
 
 **Recommended mounting height:**
-- 1.25 to 1.50 meters from the floor (typical seated/standing person height)
+- 1.25 to 1.50 meters from the floor (typical seated/standing person height).
 - Higher is possible — just tilt the sensor downward to cover the detection area.
 
 **Placement tips:**
@@ -129,14 +129,14 @@ The Plotly Graph Card shows an interactive view of target positions, movement sp
 **Install HACS and the Plotly Graph Card**
 - If you haven’t already installed HACS, follow the [Official instructions](https://www.hacs.xyz/docs/use/download/download/).
 - Once installed, open HACS from the sidebar in Home Assistant.  
-- Go to Frontend, search for Plotly Graph Card, and click Download . 
+- Go to Frontend, search for Plotly Graph Card, and click Download. 
 - Refresh your browser after installation.
 
 **Add a Custom Plotly Graph Card**
 - Go to your Home Assistant dashboard and click Edit Dashboard.
 - Select Add Card, then choose Plotly Graph Card. 
 - Click Show Code Editor to open the YAML editor.
-- Copy and paste the custom configuration from the Copy and paste the custom configuration from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/plotly-v1.0.0.yaml) into the editor.
+- Copy and paste the custom configuration from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/plotly-v1.0.0.yaml) into the editor.
 
 **Replace the Placeholder IDs**
 - In the YAML config, look for any replace_me placeholders.
@@ -185,7 +185,7 @@ We continuously improve performance and add new features to keep your device rel
 If your sensor isn’t behaving as expected, a factory reset can help you start fresh.
 
 **Install Factory Firmware**
-- Download the latest factory firmware from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/firmware/base/facory).
+- Download the latest factory firmware from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/firmware/base/factory).
 - Connect the sensor to your computer using a USB-C cable. 
 - Open the [ESPHome web wizard](https://web.esphome.io/?dashboard_wizard).
 - Click Connect and select the correct COM port.  
@@ -201,4 +201,4 @@ Your feedback helps us improve. Whether you’ve found a bug, need help, or want
 - Join the community and get support on our [Discord server](https://discord.gg/TB78Wprn66).
 
 **GitHub Issues:**  
-- Found a bug or have a suggestion? Report it on our [GitHub issues age](https://github.com/sensy-one/S1-Pro-Multi-Sense/issues).
+- Found a bug or have a suggestion? Report it on our [GitHub issues page](https://github.com/sensy-one/S1-Pro-Multi-Sense/issues).
