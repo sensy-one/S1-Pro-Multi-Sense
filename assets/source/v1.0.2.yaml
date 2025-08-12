@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.0.1"
+    version: "v1.0.2"
   on_boot:
     then:
       - light.turn_on:
@@ -407,45 +407,76 @@ sensor:
     entity_category: diagnostic
     icon: mdi:thermometer
 
+
   - platform: scd4x
     id: scd40_sensor
     measurement_mode: periodic
     automatic_self_calibration: false
     ambient_pressure_compensation_source: bme_pressure
+    update_interval: 5s            
     co2:
       name: "SCD40 CO₂ Concentration"
       id: scd_co2
       unit_of_measurement: "ppm"
-      icon: "mdi:molecule-co2"      
+      icon: "mdi:molecule-co2"
     temperature:
-      name: "SCD40 Temperature"
-      id: scd_temperature
-      filters:
-        - lambda: return x - id(scd40_temperature_offset).state;
+      name: "SCD40 Temperature Raw"
+      id: scd40_temp_raw
       unit_of_measurement: "°C"
       icon: "mdi:thermometer"
+      internal: true
     humidity:
-      name: "SCD40 Humidity"
-      id: scd_humidity
-      filters:
-        - lambda: return x - id(scd40_humidity_offset).state;
+      name: "SCD40 Humidity Raw"
+      id: scd40_rh_raw
       unit_of_measurement: "%"
       icon: "mdi:water-percent"
+      internal: true
+
+  - platform: template
+    id: scd40_temp_corr
+    name: "SCD40 Temperature"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    update_interval: 5s
+    lambda: |-
+      if (isnan(id(scd40_temp_raw).state)) return NAN;
+      return id(scd40_temp_raw).state - id(scd40_temperature_offset).state;
+
+  - platform: template
+    id: scd40_rh_corr
+    name: "SCD40 Humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: |-
+      const float Tm  = id(scd40_temp_raw).state;
+      const float Tc  = id(scd40_temp_corr).state;
+      const float RHm = id(scd40_rh_raw).state;
+      if (isnan(Tm) || isnan(Tc) || isnan(RHm)) return NAN;
+
+      auto es = [](float T) -> float {
+        return 6.1094f * expf(17.625f * T / (T + 243.04f));
+      };
+      float e = (RHm / 100.0f) * es(Tm);
+      float RHc = 100.0f * e / es(Tc);
+      if (RHc < 0.0f) RHc = 0.0f;
+      if (RHc > 100.0f) RHc = 100.0f;
+      return RHc;
 
   - platform: bme68x_bsec2
     temperature:
-      name: "BME688 Temperature"
-      filters:
-        - lambda: return x - id(bme688_temperature_offset).state;
+      name: "BME688 Temperature Raw"
+      id: bme_temp_raw
+      internal: true
       sample_rate: LP
     pressure:
       name: "BME688 Pressure"
       id: bme_pressure
       sample_rate: LP
     humidity:
-      name: "BME688 Humidity"
-      filters:
-        - lambda: return x - id(bme688_humidity_offset).state;
+      name: "BME688 Humidity Raw"
+      id: bme_rh_raw
+      internal: true
       sample_rate: LP
     gas_resistance:
       name: "BME688 Gas Resistance"
@@ -456,6 +487,37 @@ sensor:
       name: "BME688 CO₂ Equivalent"
     breath_voc_equivalent:
       name: "BME688 VOC Equivalent"
+
+  - platform: template
+    id: bme_temp_corr
+    name: "BME688 Temperature"
+    unit_of_measurement: "°C"
+    accuracy_decimals: 2
+    update_interval: 5s
+    lambda: |-
+      if (isnan(id(bme_temp_raw).state)) return NAN;
+      return id(bme_temp_raw).state - id(bme688_temperature_offset).state;
+
+  - platform: template
+    id: bme_rh_corr
+    name: "BME688 Humidity"
+    unit_of_measurement: "%"
+    accuracy_decimals: 1
+    update_interval: 5s
+    lambda: |-
+      const float Tm  = id(bme_temp_raw).state;
+      const float Tc  = id(bme_temp_corr).state;
+      const float RHm = id(bme_rh_raw).state;
+      if (isnan(Tm) || isnan(Tc) || isnan(RHm)) return NAN;
+
+      auto es = [](float T) -> float {
+        return 6.1094f * expf(17.625f * T / (T + 243.04f));
+      };
+      float e = (RHm / 100.0f) * es(Tm);
+      float RHc = 100.0f * e / es(Tc);
+      if (RHc < 0.0f) RHc = 0.0f;
+      if (RHc > 100.0f) RHc = 100.0f;
+      return RHc;
 
   - platform: ltr390
     i2c_id: i2c_bus
@@ -824,19 +886,6 @@ number:
     mode: box
 
   - platform: template
-    id: scd40_humidity_offset
-    name: SCD40 Humidity Offset
-    icon: mdi:water-percent
-    unit_of_measurement: "%"
-    min_value: -50
-    max_value: 50
-    step: 0.1
-    initial_value: 0
-    optimistic: true
-    restore_value: true
-    mode: box
-
-  - platform: template
     id: bme688_temperature_offset
     name: BME688 Temperature Offset
     icon: mdi:thermometer
@@ -845,19 +894,6 @@ number:
     max_value: 50
     step: 0.1
     initial_value: 14.5
-    optimistic: true
-    restore_value: true
-    mode: box
-
-  - platform: template
-    id: bme688_humidity_offset
-    name: BME688 Humidity Offset
-    icon: mdi:water-percent
-    unit_of_measurement: "%"
-    min_value: -50
-    max_value: 50
-    step: 0.1
-    initial_value: 0
     optimistic: true
     restore_value: true
     mode: box
