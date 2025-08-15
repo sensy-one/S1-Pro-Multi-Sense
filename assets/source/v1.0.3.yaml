@@ -4,12 +4,31 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.0.2"
+    version: "v1.0.3"
   on_boot:
+    priority: 600
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(onboarding_done);'
+          then:
+            - light.turn_on:
+                id: ws2812_LED
+                effect: "Purple Breathing"
+
+script:
+  - id: finish_onboarding
+    mode: restart
     then:
       - light.turn_on:
           id: ws2812_LED
-          effect: "Red Breathing"
+          red: 100%
+          green: 0%
+          blue: 30% 
+          brightness: 100%
+      - delay: 2s
+      - light.turn_off: ws2812_LED
+      - lambda: 'id(onboarding_done) = true;'
 
 external_components:
   - source:
@@ -38,15 +57,12 @@ logger:
 
 api:
   on_client_connected:
-    - light.turn_off:
-        id: ws2812_LED
-
-    - light.turn_on:
-        id: ws2812_LED
-        red: 0%
-        green: 100%
-        blue: 0%
-        brightness: 100%
+    then:
+      - if:
+          condition:
+            lambda: 'return !id(onboarding_done);'
+          then:
+            - script.execute: finish_onboarding
 
 ota:
   platform: esphome
@@ -89,6 +105,11 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'false'
+    
+  - id: onboarding_done
+    type: bool
+    restore_value: true
+    initial_value: 'false'
 
 light:
   - platform: esp32_rmt_led_strip
@@ -101,17 +122,19 @@ light:
     rgb_order: GRB
     effects:
       - addressable_lambda:
-          name: "Red Breathing"
+          name: "Purple Breathing"
           update_interval: 50ms
           lambda: |-
             static float phase = 0.0f;
             phase += 0.02f;
             if (phase > 1.0f) phase -= 1.0f;
-            float s = (sin(phase * 2.0f * 3.14159f) + 1.0f) * 0.5f;
-            float brightness = s * 0.8f + 0.2f;
-            uint8_t val = (uint8_t)(brightness * 255.0f);
+            float s = (sinf(phase * 2.0f * 3.14159f) + 1.0f) * 0.5f;
+            float brightness = s * 0.85f + 0.15f;
+            uint8_t r = (uint8_t)(brightness * 220.0f);
+            uint8_t g = 0;
+            uint8_t b = (uint8_t)(brightness * 255.0f);
             for (size_t i = 0; i < it.size(); i++) {
-              it[i] = Color(val, 0, 0);
+              it[i] = Color(r, g, b);
             }
 
 button:
@@ -210,14 +233,18 @@ switch:
     internal: true
 
   - platform: template
+    id: buzzer_switch
     name: "MLT8530 | Buzzer"
     icon: mdi:surround-sound
     entity_category: config
     optimistic: true
     turn_on_action:
+      - output.ledc.set_frequency:
+          id: mlt8530_buzzer
+          frequency: !lambda 'return (uint32_t) id(buzzer_pitch_hz).state;'
       - output.set_level:
           id: mlt8530_buzzer
-          level: 0.50
+          level: !lambda 'return id(buzzer_volume).state;'
     turn_off_action:
       - output.set_level:
           id: mlt8530_buzzer
@@ -923,6 +950,47 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
+  - platform: template
+    id: buzzer_pitch_hz
+    name: "MLT8530 Buzzer Pitch"
+    icon: mdi:knob
+    unit_of_measurement: "Hz"
+    min_value: 100
+    max_value: 8000
+    step: 50
+    initial_value: 2700
+    optimistic: true
+    restore_value: true
+    mode: box
+    on_value:
+      - if:
+          condition:
+            switch.is_on: buzzer_switch
+          then:
+            - output.ledc.set_frequency:
+                id: mlt8530_buzzer
+                frequency: !lambda 'return (uint32_t) x;'
+
+  - platform: template
+    id: buzzer_volume
+    name: "MLT8530 Buzzer Volume"
+    icon: mdi:volume-high
+    min_value: 0.0
+    max_value: 1.0
+    step: 0.01
+    initial_value: 0.50
+    optimistic: true
+    restore_value: true
+    mode: box
+    on_value:
+      - if:
+          condition:
+            switch.is_on: buzzer_switch
+          then:
+            - output.set_level:
+                id: mlt8530_buzzer
+                level: !lambda 'return x;'
 
 binary_sensor:
   - platform: status
