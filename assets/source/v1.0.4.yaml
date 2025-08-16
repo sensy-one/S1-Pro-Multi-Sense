@@ -506,7 +506,12 @@ sensor:
       internal: true
       sample_rate: LP
     gas_resistance:
-      name: "BME688 Gas Resistance"
+      name: "BME688 Gas Resistance (kΩ)"
+      unit_of_measurement: "kΩ"
+      accuracy_decimals: 1
+      icon: mdi:omega
+      filters:
+        - multiply: 0.001
     iaq:
       name: "BME688 IAQ"
       id: iaq
