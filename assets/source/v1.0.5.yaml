@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.0.4"
+    version: "v1.0.5"
   on_boot:
     priority: 600
     then:
@@ -15,6 +15,16 @@ esphome:
             - light.turn_on:
                 id: ws2812_LED
                 effect: "Purple Breathing"
+
+esp32_ble_tracker:
+  scan_parameters:
+    continuous: False
+    active: "True"   
+    interval: 320ms    
+    window: 300ms      
+
+bluetooth_proxy:
+  active: "True"      
 
 script:
   - id: finish_onboarding
@@ -39,6 +49,8 @@ esp32:
   board: esp32-c3-devkitm-1
   framework:
     type: esp-idf
+    sdkconfig_options:
+      CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE: n
 
 wifi:
   ap:
@@ -58,11 +70,21 @@ logger:
 api:
   on_client_connected:
     then:
+      - esp32_ble_tracker.start_scan:
+          continuous: true
       - if:
           condition:
             lambda: 'return !id(onboarding_done);'
           then:
             - script.execute: finish_onboarding
+
+  on_client_disconnected:
+    if:
+      condition:
+        not:
+          api.connected:
+      then:
+        - esp32_ble_tracker.stop_scan:
 
 ota:
   platform: esphome
