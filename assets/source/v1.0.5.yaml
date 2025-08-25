@@ -485,6 +485,8 @@ sensor:
     id: scd40_temp_corr
     name: "SCD40 Temperature"
     unit_of_measurement: "°C"
+    state_class: measurement
+    device_class: temperature
     accuracy_decimals: 2
     update_interval: 5s
     lambda: |-
@@ -495,6 +497,8 @@ sensor:
     id: scd40_rh_corr
     name: "SCD40 Humidity"
     unit_of_measurement: "%"
+    state_class: measurement
+    device_class: humidity
     accuracy_decimals: 1
     update_interval: 5s
     lambda: |-
@@ -546,6 +550,8 @@ sensor:
     id: bme_temp_corr
     name: "BME688 Temperature"
     unit_of_measurement: "°C"
+    state_class: measurement
+    device_class: temperature
     accuracy_decimals: 2
     update_interval: 5s
     lambda: |-
@@ -556,6 +562,8 @@ sensor:
     id: bme_rh_corr
     name: "BME688 Humidity"
     unit_of_measurement: "%"
+    state_class: measurement
+    device_class: humidity
     accuracy_decimals: 1
     update_interval: 5s
     lambda: |-
