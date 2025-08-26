@@ -36,6 +36,10 @@ The custom case is optimized for minimal interference with mmWave signals and ma
 Powered by the Hi-Link LD2450 radar module, the S1 Pro tracks up to three targets simultaneously, including their position, speed, and movement in real time.
 It features a 120° field of view, 70° vertical coverage, and up to 6 meters range, with updates every 30 ms for smooth, accurate presence detection.
 
+**BLE Presence & Proximity**
+
+The S1 Pro supports Bluetooth-based presence and proximity detection, with seamless integration into platforms like Bermuda. This enables accurate room-level tracking of smartphones, wearables, and tags!
+
 **Customizable detection zones**
 
 Define up to 3 detection zones (expandable to 10 in a future update), plus 1 exclusion zone to ignore movement from devices like fans or 3D printers.
