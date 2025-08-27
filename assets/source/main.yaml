@@ -162,6 +162,7 @@ light:
 button:
   - platform: template
     name: "RADAR | Flip Y Axis"
+    id: radar_flip_y_btn
     entity_category: config
     icon: "mdi:axis-y-rotate-clockwise"
     on_press:
@@ -182,6 +183,7 @@ button:
                   
   - platform: factory_reset
     name: "ESP32 | Factory Reset"
+    id: factory_reset_btn
     entity_category: config
     icon: mdi:factory
 
@@ -193,6 +195,7 @@ button:
 
   - platform: template
     name: "RADAR | Single Target"
+    id: radar_single_target_btn
     entity_category: config
     icon: mdi:account
     on_press:
@@ -202,6 +205,7 @@ button:
 
   - platform: template
     name: "RADAR | Multi Target"
+    id: radar_multi_target_btn
     entity_category: config
     icon: mdi:account-group
     on_press:
@@ -211,6 +215,7 @@ button:
 
   - platform: template
     name: "RADAR | Restart Module"
+    id: radar_restart_btn
     icon: mdi:restart
     entity_category: config
     on_press:
@@ -220,6 +225,7 @@ button:
 
   - platform: template
     name: "RADAR | Factory Reset"
+    id: radar_factory_reset_btn
     icon: mdi:factory
     entity_category: config
     on_press:
@@ -232,6 +238,7 @@ button:
 
   - platform: template
     name: "SCD40 | Forced Calibration"
+    id: scd40_forced_calibration_btn
     icon: "mdi:tune"
     entity_category: config
     on_press:
@@ -241,6 +248,7 @@ button:
 
   - platform: template
     name: "SCD40 | Factory Reset"
+    id: scd40_factory_reset_btn
     icon: "mdi:factory"
     entity_category: config
     on_press:
