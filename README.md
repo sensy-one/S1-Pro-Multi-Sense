@@ -177,7 +177,7 @@ Keep your S1 Pro up to date with regular OTA updates.
 We continuously improve performance and add new features to keep your device reliable and future-ready.
 
 **Install OTA Updates**
-- Download the latest firmware from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/firmware/base/ota).
+- Download the latest OTA firmware from the [releases](https://github.com/sensy-one/S1-Pro-Multi-Sense/releases).
 - In Home Assistant, go to Devices and Services, ESPHome.
 - Select your S1 Pro and click Visit under Device Info to open the web interface. 
 - Scroll down to OTA Update, choose the firmware file, and click Update.
@@ -189,7 +189,7 @@ We continuously improve performance and add new features to keep your device rel
 If your sensor isn’t behaving as expected, a factory reset can help you start fresh.
 
 **Install Factory Firmware**
-- Download the latest factory firmware from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/firmware/base/factory).
+- Download the latest factory firmware from the [releases](https://github.com/sensy-one/S1-Pro-Multi-Sense/releases).
 - Connect the sensor to your computer using a USB-C cable. 
 - Open the [ESPHome web wizard](https://web.esphome.io/?dashboard_wizard).
 - Click Connect and select the correct COM port.  
