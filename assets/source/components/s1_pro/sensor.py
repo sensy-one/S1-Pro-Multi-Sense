@@ -16,6 +16,7 @@ CONF_EXC_X_END = "exclusion_x_end"
 CONF_EXC_Y_BEGIN = "exclusion_y_begin"
 CONF_EXC_Y_END = "exclusion_y_end"
 CONF_TRACKING_MODE = "tracking_mode"
+CONF_BLUETOOTH_STATE = "bluetooth_state"
 
 SENSOR_KEYS = [
     "target1_x", "target1_y", "target1_angle", "target1_speed", "target1_distance",
@@ -38,6 +39,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_EXC_Y_END): cv.use_id(number.Number),
 
     cv.Required(CONF_TRACKING_MODE): text_sensor.text_sensor_schema(),
+    cv.Optional(CONF_BLUETOOTH_STATE): text_sensor.text_sensor_schema(),
 
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
@@ -66,3 +68,7 @@ async def to_code(config):
 
     tracking = await text_sensor.new_text_sensor(config[CONF_TRACKING_MODE])
     cg.add(var.set_tracking_mode_sensor(tracking))
+
+    if CONF_BLUETOOTH_STATE in config:
+        bt_state = await text_sensor.new_text_sensor(config[CONF_BLUETOOTH_STATE])
+        cg.add(var.set_bluetooth_state_sensor(bt_state))
