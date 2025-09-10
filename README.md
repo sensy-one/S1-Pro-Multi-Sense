@@ -40,6 +40,8 @@ It features a 120° field of view, 70° vertical coverage, and up to 6 meters ra
 
 The S1 Pro supports Bluetooth-based presence and proximity detection, with seamless integration into platforms like Bermuda. This enables accurate room-level tracking of smartphones, wearables, and tags!
 
+> Note: This feature is temporarily disabled due to performance issues. We’re actively working on stabilizing it.
+
 **Customizable detection zones**
 
 Define up to 3 detection zones (expandable to 10 in a future update), plus 1 exclusion zone to ignore movement from devices like fans or 3D printers.
