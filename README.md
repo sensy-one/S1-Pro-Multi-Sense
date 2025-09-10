@@ -103,7 +103,7 @@ For best results, use a dedicated IoT network to improve stability, make discove
 The S1 Pro allows you to fine-tune sensor readings directly from Home Assistant.
 
 **Offsets are available for:**
-- Temperature & humidity (BME688 / SCD40)
+- Temperature (BME688 / SCD40)
 - Lux & UV index (LTR-390UV)
 
 **To calibrate:** 
@@ -115,7 +115,6 @@ The S1 Pro allows you to fine-tune sensor readings directly from Home Assistant.
 
 ## 🌬 CO₂ Calibration (SCD40 Add-on)
 
-The Sensirion SCD40 calibrates itself automatically during normal use.
 For faster or more precise calibration, you can use the Forced Calibration button in Home Assistant.
 
 **To calibrate manually:**
@@ -140,7 +139,7 @@ The Plotly Graph Card shows an interactive view of target positions, movement sp
 - Go to your Home Assistant dashboard and click Edit Dashboard.
 - Select Add Card, then choose Plotly Graph Card. 
 - Click Show Code Editor to open the YAML editor.
-- Copy and paste the custom configuration from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/plotly-v1.0.0.yaml) into the editor.
+- Copy and paste the custom configuration from the [Git repository](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/plotly_chart.yaml) into the editor.
 
 **Replace the Placeholder IDs**
 - In the YAML config, look for any replace_me placeholders.
@@ -152,24 +151,18 @@ The Plotly Graph Card shows an interactive view of target positions, movement sp
 
 ## 🧭 Get in the Zone
 
-Set up custom zones right from your Home Assistant dashboard.  
-The S1 Pro currently supports up to 3 detection zones and 1 exclusion zone.
+The S1 Pro now supports up to 3 detection zones and 1 exclusion zone — all configurable as custom polygons with up to 8 points each.
+Instead of adjusting multiple number entities, you can now set zones visually using the Zone Editor tool:
 
-**Set Horizontal Boundaries**
-- X Begin: Enter the leftmost coordinate of your zone.  
-- X End: Enter the rightmost coordinate of your zone.
+**How to use the Zone Editor**
+- Download the [zone_editor.html](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/config/zone_editor.html) file.
+- Open the Zone Editor on a desktop computer using any modern browser (Chrome, Edge, Firefox, Safari).
+- In the Zone Editor, enter the IP address of your S1 Pro (the same one you see in Home Assistant).
+- Select which zone you want to configure (Zone 1, Zone 2, Zone 3, or Exclusion).
+- Click directly on the radar canvas to place up to 8 points and draw the shape of your zone.
+- Save your configuration — it will be applied immediately to your device.
 
-**Set Vertical Boundaries**
-- Y Begin: Enter the top coordinate of your zone.  
-- Y End: Enter the bottom coordinate of your zone.
-
-**Example Configuration**
-- X Begin: -125  
-- X End: 125  
-- Y Begin: 175  
-- Y End: 425
-
-> Note: A future update will expand support to 10 zones.
+> Note: Make sure your desktop is connected to the same network as your Home Assistant / Sensor.
 
 ## 🔄 Firmware on the Fly
 
