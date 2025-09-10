@@ -14,8 +14,8 @@ layout:
     b: 5
   showlegend: false
   hovermode: false
-  paper_bgcolor: "#0a0d12"
-  plot_bgcolor: "#0a0d12"
+  #paper_bgcolor: "#0a0d12"
+  #plot_bgcolor: "#0a0d12"
   xaxis:
     title: null
     dtick: 100
