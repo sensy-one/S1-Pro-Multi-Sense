@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.0.7"
+    version: "v1.1.7"
   on_boot:
     priority: 600
     then:
@@ -14,17 +14,7 @@ esphome:
           then:
             - light.turn_on:
                 id: ws2812_LED
-                effect: "Purple Breathing"
-
-esp32_ble_tracker:
-  scan_parameters:
-    continuous: False
-    active: "True"   
-    interval: 320ms    
-    window: 300ms      
-
-bluetooth_proxy:
-  active: "True"      
+                effect: "Purple Breathing"   
 
 script:
   - id: finish_onboarding
@@ -65,33 +55,23 @@ esp32_improv:
   wifi_timeout: 1min
 
 logger:
-  level: ERROR
+  level: NONE
+  baud_rate: 0
 
 api:
   on_client_connected:
     then:
-      - esp32_ble_tracker.start_scan:
-          continuous: true
       - if:
           condition:
             lambda: 'return !id(onboarding_done);'
           then:
             - script.execute: finish_onboarding
 
-  on_client_disconnected:
-    if:
-      condition:
-        not:
-          api.connected:
-      then:
-        - esp32_ble_tracker.stop_scan:
-
 ota:
-  platform: esphome
+  - platform: web_server
 
 web_server:
-  port: 80
-  log: false
+  version: 3
 
 uart:
   id: uart_bus
@@ -387,10 +367,23 @@ sensor:
 
     detection_range: detection_range
     flip_y: flip_y
-    exclusion_x_begin: exclusion_x_begin
-    exclusion_x_end: exclusion_x_end
-    exclusion_y_begin: exclusion_y_begin
-    exclusion_y_end: exclusion_y_end
+    exclusion_zone_points_count: exclusion_zone_points_count
+    exclusion_zone_p1_x: exclusion_zone_p1_x
+    exclusion_zone_p1_y: exclusion_zone_p1_y
+    exclusion_zone_p2_x: exclusion_zone_p2_x
+    exclusion_zone_p2_y: exclusion_zone_p2_y
+    exclusion_zone_p3_x: exclusion_zone_p3_x
+    exclusion_zone_p3_y: exclusion_zone_p3_y
+    exclusion_zone_p4_x: exclusion_zone_p4_x
+    exclusion_zone_p4_y: exclusion_zone_p4_y
+    exclusion_zone_p5_x: exclusion_zone_p5_x
+    exclusion_zone_p5_y: exclusion_zone_p5_y
+    exclusion_zone_p6_x: exclusion_zone_p6_x
+    exclusion_zone_p6_y: exclusion_zone_p6_y
+    exclusion_zone_p7_x: exclusion_zone_p7_x
+    exclusion_zone_p7_y: exclusion_zone_p7_y
+    exclusion_zone_p8_x: exclusion_zone_p8_x
+    exclusion_zone_p8_y: exclusion_zone_p8_y
 
     tracking_mode:
       name: "RADAR | Tracking Mode"
@@ -424,22 +417,37 @@ sensor:
     unit_of_measurement: ""
     update_interval: 250ms
     lambda: |-
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone1_points_count).state;
+      if (n < 3) return 0;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone1_p1_x).state); ys[0]=nz(id(zone1_p1_y).state);
+      xs[1]=nz(id(zone1_p2_x).state); ys[1]=nz(id(zone1_p2_y).state);
+      xs[2]=nz(id(zone1_p3_x).state); ys[2]=nz(id(zone1_p3_y).state);
+      xs[3]=nz(id(zone1_p4_x).state); ys[3]=nz(id(zone1_p4_y).state);
+      xs[4]=nz(id(zone1_p5_x).state); ys[4]=nz(id(zone1_p5_y).state);
+      xs[5]=nz(id(zone1_p6_x).state); ys[5]=nz(id(zone1_p6_y).state);
+      xs[6]=nz(id(zone1_p7_x).state); ys[6]=nz(id(zone1_p7_y).state);
+      xs[7]=nz(id(zone1_p8_x).state); ys[7]=nz(id(zone1_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      // Ray-casting point-in-polygon
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
       int count = 0;
-      if (id(target1_distance).state > 0 &&
-          id(target1_x).state >= id(zone1_x_begin).state &&
-          id(target1_x).state <= id(zone1_x_end).state &&
-          id(target1_y).state >= id(zone1_y_begin).state &&
-          id(target1_y).state <= id(zone1_y_end).state) count++;
-      if (id(target2_distance).state > 0 &&
-          id(target2_x).state >= id(zone1_x_begin).state &&
-          id(target2_x).state <= id(zone1_x_end).state &&
-          id(target2_y).state >= id(zone1_y_begin).state &&
-          id(target2_y).state <= id(zone1_y_end).state) count++;
-      if (id(target3_distance).state > 0 &&
-          id(target3_x).state >= id(zone1_x_begin).state &&
-          id(target3_x).state <= id(zone1_x_end).state &&
-          id(target3_y).state >= id(zone1_y_begin).state &&
-          id(target3_y).state <= id(zone1_y_end).state) count++;
+      if (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state)) count++;
+      if (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state)) count++;
+      if (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state)) count++;
       return count;
 
   - platform: template
@@ -449,22 +457,37 @@ sensor:
     unit_of_measurement: ""
     update_interval: 250ms
     lambda: |-
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone2_points_count).state;
+      if (n < 3) return 0;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone2_p1_x).state); ys[0]=nz(id(zone2_p1_y).state);
+      xs[1]=nz(id(zone2_p2_x).state); ys[1]=nz(id(zone2_p2_y).state);
+      xs[2]=nz(id(zone2_p3_x).state); ys[2]=nz(id(zone2_p3_y).state);
+      xs[3]=nz(id(zone2_p4_x).state); ys[3]=nz(id(zone2_p4_y).state);
+      xs[4]=nz(id(zone2_p5_x).state); ys[4]=nz(id(zone2_p5_y).state);
+      xs[5]=nz(id(zone2_p6_x).state); ys[5]=nz(id(zone2_p6_y).state);
+      xs[6]=nz(id(zone2_p7_x).state); ys[6]=nz(id(zone2_p7_y).state);
+      xs[7]=nz(id(zone2_p8_x).state); ys[7]=nz(id(zone2_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      // Ray-casting point-in-polygon
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
       int count = 0;
-      if (id(target1_distance).state > 0 &&
-          id(target1_x).state >= id(zone2_x_begin).state &&
-          id(target1_x).state <= id(zone2_x_end).state &&
-          id(target1_y).state >= id(zone2_y_begin).state &&
-          id(target1_y).state <= id(zone2_y_end).state) count++;
-      if (id(target2_distance).state > 0 &&
-          id(target2_x).state >= id(zone2_x_begin).state &&
-          id(target2_x).state <= id(zone2_x_end).state &&
-          id(target2_y).state >= id(zone2_y_begin).state &&
-          id(target2_y).state <= id(zone2_y_end).state) count++;
-      if (id(target3_distance).state > 0 &&
-          id(target3_x).state >= id(zone2_x_begin).state &&
-          id(target3_x).state <= id(zone2_x_end).state &&
-          id(target3_y).state >= id(zone2_y_begin).state &&
-          id(target3_y).state <= id(zone2_y_end).state) count++;
+      if (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state)) count++;
+      if (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state)) count++;
+      if (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state)) count++;
       return count;
 
   - platform: template
@@ -474,29 +497,43 @@ sensor:
     unit_of_measurement: ""
     update_interval: 250ms
     lambda: |-
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone3_points_count).state;
+      if (n < 3) return 0;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone3_p1_x).state); ys[0]=nz(id(zone3_p1_y).state);
+      xs[1]=nz(id(zone3_p2_x).state); ys[1]=nz(id(zone3_p2_y).state);
+      xs[2]=nz(id(zone3_p3_x).state); ys[2]=nz(id(zone3_p3_y).state);
+      xs[3]=nz(id(zone3_p4_x).state); ys[3]=nz(id(zone3_p4_y).state);
+      xs[4]=nz(id(zone3_p5_x).state); ys[4]=nz(id(zone3_p5_y).state);
+      xs[5]=nz(id(zone3_p6_x).state); ys[5]=nz(id(zone3_p6_y).state);
+      xs[6]=nz(id(zone3_p7_x).state); ys[6]=nz(id(zone3_p7_y).state);
+      xs[7]=nz(id(zone3_p8_x).state); ys[7]=nz(id(zone3_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      // Ray-casting point-in-polygon
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
       int count = 0;
-      if (id(target1_distance).state > 0 &&
-          id(target1_x).state >= id(zone3_x_begin).state &&
-          id(target1_x).state <= id(zone3_x_end).state &&
-          id(target1_y).state >= id(zone3_y_begin).state &&
-          id(target1_y).state <= id(zone3_y_end).state) count++;
-      if (id(target2_distance).state > 0 &&
-          id(target2_x).state >= id(zone3_x_begin).state &&
-          id(target2_x).state <= id(zone3_x_end).state &&
-          id(target2_y).state >= id(zone3_y_begin).state &&
-          id(target2_y).state <= id(zone3_y_end).state) count++;
-      if (id(target3_distance).state > 0 &&
-          id(target3_x).state >= id(zone3_x_begin).state &&
-          id(target3_x).state <= id(zone3_x_end).state &&
-          id(target3_y).state >= id(zone3_y_begin).state &&
-          id(target3_y).state <= id(zone3_y_end).state) count++;
+      if (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state)) count++;
+      if (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state)) count++;
+      if (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state)) count++;
       return count;
 
   - platform: internal_temperature
     name: "ESP32 | Temperature"
     entity_category: diagnostic
     icon: mdi:thermometer
-
 
   - platform: scd4x
     id: scd40_sensor
@@ -691,9 +728,22 @@ number:
     mode: box
 
   - platform: template
-    id: exclusion_x_begin
-    name: "Exclusion X Begin"
-    icon: mdi:arrow-collapse-left
+    id: exclusion_zone_points_count
+    name: "Exclusion Zone Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p1_x
+    name: "Exclusion Zone P1 X"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: -600
     max_value: 600
@@ -702,24 +752,10 @@ number:
     optimistic: true
     restore_value: true
     mode: box
-
   - platform: template
-    id: exclusion_x_end
-    name: "Exclusion X End"
-    icon: mdi:arrow-collapse-right
-    unit_of_measurement: "cm"
-    min_value: -600
-    max_value: 600
-    step: 1
-    initial_value: 0
-    optimistic: true
-    restore_value: true
-    mode: box
-
-  - platform: template
-    id: exclusion_y_begin
-    name: "Exclusion Y Begin"
-    icon: mdi:arrow-collapse-up
+    id: exclusion_zone_p1_y
+    name: "Exclusion Zone P1 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -730,9 +766,21 @@ number:
     mode: box
 
   - platform: template
-    id: exclusion_y_end
-    name: "Exclusion Y End"
-    icon: mdi:arrow-collapse-down
+    id: exclusion_zone_p2_x
+    name: "Exclusion Zone P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p2_y
+    name: "Exclusion Zone P2 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -743,9 +791,9 @@ number:
     mode: box
 
   - platform: template
-    id: zone1_x_begin
-    name: "Zone 1 X Begin"
-    icon: mdi:arrow-collapse-left
+    id: exclusion_zone_p3_x
+    name: "Exclusion Zone P3 X"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: -600
     max_value: 600
@@ -754,24 +802,10 @@ number:
     optimistic: true
     restore_value: true
     mode: box
-
   - platform: template
-    id: zone1_x_end
-    name: "Zone 1 X End"
-    icon: mdi:arrow-collapse-right
-    unit_of_measurement: "cm"
-    min_value: -600
-    max_value: 600
-    step: 1
-    initial_value: 0
-    optimistic: true
-    restore_value: true
-    mode: box
-
-  - platform: template
-    id: zone1_y_begin
-    name: "Zone 1 Y Begin"
-    icon: mdi:arrow-collapse-up
+    id: exclusion_zone_p3_y
+    name: "Exclusion Zone P3 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -779,11 +813,337 @@ number:
     initial_value: 0
     optimistic: true
     restore_value: true
+    mode: box
 
   - platform: template
-    id: zone1_y_end
-    name: "Zone 1 Y End"
-    icon: mdi:arrow-collapse-down
+    id: exclusion_zone_p4_x
+    name: "Exclusion Zone P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p4_y
+    name: "Exclusion Zone P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p5_x
+    name: "Exclusion Zone P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p5_y
+    name: "Exclusion Zone P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p6_x
+    name: "Exclusion Zone P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p6_y
+    name: "Exclusion Zone P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p7_x
+    name: "Exclusion Zone P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p7_y
+    name: "Exclusion Zone P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p8_x
+    name: "Exclusion Zone P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p8_y
+    name: "Exclusion Zone P8 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_points_count
+    name: "Zone 1 Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p1_x
+    name: "Zone 1 P1 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p1_y
+    name: "Zone 1 P1 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p2_x
+    name: "Zone 1 P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p2_y
+    name: "Zone 1 P2 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p3_x
+    name: "Zone 1 P3 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p3_y
+    name: "Zone 1 P3 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p4_x
+    name: "Zone 1 P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p4_y
+    name: "Zone 1 P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p5_x
+    name: "Zone 1 P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p5_y
+    name: "Zone 1 P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p6_x
+    name: "Zone 1 P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p6_y
+    name: "Zone 1 P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p7_x
+    name: "Zone 1 P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p7_y
+    name: "Zone 1 P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p8_x
+    name: "Zone 1 P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p8_y
+    name: "Zone 1 P8 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -820,9 +1180,22 @@ number:
     mode: box
 
   - platform: template
-    id: zone2_x_begin
-    name: "Zone 2 X Begin"
-    icon: mdi:arrow-collapse-left
+    id: zone2_points_count
+    name: "Zone 2 Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p1_x
+    name: "Zone 2 P1 X"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: -600
     max_value: 600
@@ -831,24 +1204,10 @@ number:
     optimistic: true
     restore_value: true
     mode: box
-
   - platform: template
-    id: zone2_x_end
-    name: "Zone 2 X End"
-    icon: mdi:arrow-collapse-right
-    unit_of_measurement: "cm"
-    min_value: -600
-    max_value: 600
-    step: 1
-    initial_value: 0
-    optimistic: true
-    restore_value: true
-    mode: box
-
-  - platform: template
-    id: zone2_y_begin
-    name: "Zone 2 Y Begin"
-    icon: mdi:arrow-collapse-up
+    id: zone2_p1_y
+    name: "Zone 2 P1 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -859,9 +1218,171 @@ number:
     mode: box
 
   - platform: template
-    id: zone2_y_end
-    name: "Zone 2 Y End"
-    icon: mdi:arrow-collapse-down
+    id: zone2_p2_x
+    name: "Zone 2 P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p2_y
+    name: "Zone 2 P2 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p3_x
+    name: "Zone 2 P3 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p3_y
+    name: "Zone 2 P3 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p4_x
+    name: "Zone 2 P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p4_y
+    name: "Zone 2 P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p5_x
+    name: "Zone 2 P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p5_y
+    name: "Zone 2 P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p6_x
+    name: "Zone 2 P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p6_y
+    name: "Zone 2 P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p7_x
+    name: "Zone 2 P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p7_y
+    name: "Zone 2 P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p8_x
+    name: "Zone 2 P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p8_y
+    name: "Zone 2 P8 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -898,9 +1419,22 @@ number:
     mode: box
 
   - platform: template
-    id: zone3_x_begin
-    name: "Zone 3 X Begin"
-    icon: mdi:arrow-collapse-left
+    id: zone3_points_count
+    name: "Zone 3 Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p1_x
+    name: "Zone 3 P1 X"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: -600
     max_value: 600
@@ -909,24 +1443,10 @@ number:
     optimistic: true
     restore_value: true
     mode: box
-
   - platform: template
-    id: zone3_x_end
-    name: "Zone 3 X End"
-    icon: mdi:arrow-collapse-right
-    unit_of_measurement: "cm"
-    min_value: -600
-    max_value: 600
-    step: 1
-    initial_value: 0
-    optimistic: true
-    restore_value: true
-    mode: box
-
-  - platform: template
-    id: zone3_y_begin
-    name: "Zone 3 Y Begin"
-    icon: mdi:arrow-collapse-up
+    id: zone3_p1_y
+    name: "Zone 3 P1 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -937,9 +1457,171 @@ number:
     mode: box
 
   - platform: template
-    id: zone3_y_end
-    name: "Zone 3 Y End"
-    icon: mdi:arrow-collapse-down
+    id: zone3_p2_x
+    name: "Zone 3 P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p2_y
+    name: "Zone 3 P2 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p3_x
+    name: "Zone 3 P3 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p3_y
+    name: "Zone 3 P3 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p4_x
+    name: "Zone 3 P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p4_y
+    name: "Zone 3 P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p5_x
+    name: "Zone 3 P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p5_y
+    name: "Zone 3 P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p6_x
+    name: "Zone 3 P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p6_y
+    name: "Zone 3 P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p7_x
+    name: "Zone 3 P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p7_y
+    name: "Zone 3 P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p8_x
+    name: "Zone 3 P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p8_y
+    name: "Zone 3 P8 Y"
+    icon: mdi:map-marker
     unit_of_measurement: "cm"
     min_value: 0
     max_value: 600
@@ -1106,25 +1788,39 @@ binary_sensor:
     lambda: |-
       static unsigned long last_off_1 = 0;
       unsigned long now = millis();
-      bool pres1 = (id(target1_distance).state > 0 &&
-                   id(target1_x).state >= id(zone1_x_begin).state &&
-                   id(target1_x).state <= id(zone1_x_end).state &&
-                   id(target1_y).state >= id(zone1_y_begin).state &&
-                   id(target1_y).state <= id(zone1_y_end).state)
-                || (id(target2_distance).state > 0 &&
-                   id(target2_x).state >= id(zone1_x_begin).state &&
-                   id(target2_x).state <= id(zone1_x_end).state &&
-                   id(target2_y).state >= id(zone1_y_begin).state &&
-                   id(target2_y).state <= id(zone1_y_end).state)
-                || (id(target3_distance).state > 0 &&
-                   id(target3_x).state >= id(zone1_x_begin).state &&
-                   id(target3_x).state <= id(zone1_x_end).state &&
-                   id(target3_y).state >= id(zone1_y_begin).state &&
-                   id(target3_y).state <= id(zone1_y_end).state);
-      if (pres1) {
-        last_off_1 = now;
-        return true;
-      }
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone1_points_count).state;
+      if (n < 3) return (now - last_off_1) < (unsigned long)(id(zone1_presence_delay).state * 1000.0);
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone1_p1_x).state); ys[0]=nz(id(zone1_p1_y).state);
+      xs[1]=nz(id(zone1_p2_x).state); ys[1]=nz(id(zone1_p2_y).state);
+      xs[2]=nz(id(zone1_p3_x).state); ys[2]=nz(id(zone1_p3_y).state);
+      xs[3]=nz(id(zone1_p4_x).state); ys[3]=nz(id(zone1_p4_y).state);
+      xs[4]=nz(id(zone1_p5_x).state); ys[4]=nz(id(zone1_p5_y).state);
+      xs[5]=nz(id(zone1_p6_x).state); ys[5]=nz(id(zone1_p6_y).state);
+      xs[6]=nz(id(zone1_p7_x).state); ys[6]=nz(id(zone1_p7_y).state);
+      xs[7]=nz(id(zone1_p8_x).state); ys[7]=nz(id(zone1_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool pres =
+          (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state));
+
+      if (pres) { last_off_1 = now; return true; }
       return (now - last_off_1) < (unsigned long)(id(zone1_presence_delay).state * 1000.0);
 
   - platform: template
@@ -1132,26 +1828,39 @@ binary_sensor:
     icon: mdi:motion-sensor
     device_class: motion
     lambda: |-
-      float thresh1 = id(zone1_movement_threshold).state;
-      bool mov1 = (std::abs(id(target1_speed).state) > thresh1 &&
-                   id(target1_distance).state > 0 &&
-                   id(target1_x).state >= id(zone1_x_begin).state &&
-                   id(target1_x).state <= id(zone1_x_end).state &&
-                   id(target1_y).state >= id(zone1_y_begin).state &&
-                   id(target1_y).state <= id(zone1_y_end).state)
-               || (std::abs(id(target2_speed).state) > thresh1 &&
-                   id(target2_distance).state > 0 &&
-                   id(target2_x).state >= id(zone1_x_begin).state &&
-                   id(target2_x).state <= id(zone1_x_end).state &&
-                   id(target2_y).state >= id(zone1_y_begin).state &&
-                   id(target2_y).state <= id(zone1_y_end).state)
-               || (std::abs(id(target3_speed).state) > thresh1 &&
-                   id(target3_distance).state > 0 &&
-                   id(target3_x).state >= id(zone1_x_begin).state &&
-                   id(target3_x).state <= id(zone1_x_end).state &&
-                   id(target3_y).state >= id(zone1_y_begin).state &&
-                   id(target3_y).state <= id(zone1_y_end).state);
-      return mov1;
+      float thresh = id(zone1_movement_threshold).state;
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone1_points_count).state;
+      if (n < 3) return false;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone1_p1_x).state); ys[0]=nz(id(zone1_p1_y).state);
+      xs[1]=nz(id(zone1_p2_x).state); ys[1]=nz(id(zone1_p2_y).state);
+      xs[2]=nz(id(zone1_p3_x).state); ys[2]=nz(id(zone1_p3_y).state);
+      xs[3]=nz(id(zone1_p4_x).state); ys[3]=nz(id(zone1_p4_y).state);
+      xs[4]=nz(id(zone1_p5_x).state); ys[4]=nz(id(zone1_p5_y).state);
+      xs[5]=nz(id(zone1_p6_x).state); ys[5]=nz(id(zone1_p6_y).state);
+      xs[6]=nz(id(zone1_p7_x).state); ys[6]=nz(id(zone1_p7_y).state);
+      xs[7]=nz(id(zone1_p8_x).state); ys[7]=nz(id(zone1_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool mov =
+          (id(target1_distance).state > 0 && std::abs(id(target1_speed).state) > thresh && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && std::abs(id(target2_speed).state) > thresh && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && std::abs(id(target3_speed).state) > thresh && in_poly(id(target3_x).state, id(target3_y).state));
+      return mov;
 
   - platform: template
     name: "Zone 2 Presence"
@@ -1160,25 +1869,39 @@ binary_sensor:
     lambda: |-
       static unsigned long last_off_2 = 0;
       unsigned long now = millis();
-      bool pres2 = (id(target1_distance).state > 0 &&
-                   id(target1_x).state >= id(zone2_x_begin).state &&
-                   id(target1_x).state <= id(zone2_x_end).state &&
-                   id(target1_y).state >= id(zone2_y_begin).state &&
-                   id(target1_y).state <= id(zone2_y_end).state)
-                || (id(target2_distance).state > 0 &&
-                   id(target2_x).state >= id(zone2_x_begin).state &&
-                   id(target2_x).state <= id(zone2_x_end).state &&
-                   id(target2_y).state >= id(zone2_y_begin).state &&
-                   id(target2_y).state <= id(zone2_y_end).state)
-                || (id(target3_distance).state > 0 &&
-                   id(target3_x).state >= id(zone2_x_begin).state &&
-                   id(target3_x).state <= id(zone2_x_end).state &&
-                   id(target3_y).state >= id(zone2_y_begin).state &&
-                   id(target3_y).state <= id(zone2_y_end).state);
-      if (pres2) {
-        last_off_2 = now;
-        return true;
-      }
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone2_points_count).state;
+      if (n < 3) return (now - last_off_2) < (unsigned long)(id(zone2_presence_delay).state * 1000.0);
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone2_p1_x).state); ys[0]=nz(id(zone2_p1_y).state);
+      xs[1]=nz(id(zone2_p2_x).state); ys[1]=nz(id(zone2_p2_y).state);
+      xs[2]=nz(id(zone2_p3_x).state); ys[2]=nz(id(zone2_p3_y).state);
+      xs[3]=nz(id(zone2_p4_x).state); ys[3]=nz(id(zone2_p4_y).state);
+      xs[4]=nz(id(zone2_p5_x).state); ys[4]=nz(id(zone2_p5_y).state);
+      xs[5]=nz(id(zone2_p6_x).state); ys[5]=nz(id(zone2_p6_y).state);
+      xs[6]=nz(id(zone2_p7_x).state); ys[6]=nz(id(zone2_p7_y).state);
+      xs[7]=nz(id(zone2_p8_x).state); ys[7]=nz(id(zone2_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool pres =
+          (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state));
+
+      if (pres) { last_off_2 = now; return true; }
       return (now - last_off_2) < (unsigned long)(id(zone2_presence_delay).state * 1000.0);
 
   - platform: template
@@ -1186,26 +1909,39 @@ binary_sensor:
     icon: mdi:motion-sensor
     device_class: motion
     lambda: |-
-      float thresh2 = id(zone2_movement_threshold).state;
-      bool mov2 = (std::abs(id(target1_speed).state) > thresh2 &&
-                   id(target1_distance).state > 0 &&
-                   id(target1_x).state >= id(zone2_x_begin).state &&
-                   id(target1_x).state <= id(zone2_x_end).state &&
-                   id(target1_y).state >= id(zone2_y_begin).state &&
-                   id(target1_y).state <= id(zone2_y_end).state)
-               || (std::abs(id(target2_speed).state) > thresh2 &&
-                   id(target2_distance).state > 0 &&
-                   id(target2_x).state >= id(zone2_x_begin).state &&
-                   id(target2_x).state <= id(zone2_x_end).state &&
-                   id(target2_y).state >= id(zone2_y_begin).state &&
-                   id(target2_y).state <= id(zone2_y_end).state)
-               || (std::abs(id(target3_speed).state) > thresh2 &&
-                   id(target3_distance).state > 0 &&
-                   id(target3_x).state >= id(zone2_x_begin).state &&
-                   id(target3_x).state <= id(zone2_x_end).state &&
-                   id(target3_y).state >= id(zone2_y_begin).state &&
-                   id(target3_y).state <= id(zone2_y_end).state);
-      return mov2;
+      float thresh = id(zone2_movement_threshold).state;
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone2_points_count).state;
+      if (n < 3) return false;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone2_p1_x).state); ys[0]=nz(id(zone2_p1_y).state);
+      xs[1]=nz(id(zone2_p2_x).state); ys[1]=nz(id(zone2_p2_y).state);
+      xs[2]=nz(id(zone2_p3_x).state); ys[2]=nz(id(zone2_p3_y).state);
+      xs[3]=nz(id(zone2_p4_x).state); ys[3]=nz(id(zone2_p4_y).state);
+      xs[4]=nz(id(zone2_p5_x).state); ys[4]=nz(id(zone2_p5_y).state);
+      xs[5]=nz(id(zone2_p6_x).state); ys[5]=nz(id(zone2_p6_y).state);
+      xs[6]=nz(id(zone2_p7_x).state); ys[6]=nz(id(zone2_p7_y).state);
+      xs[7]=nz(id(zone2_p8_x).state); ys[7]=nz(id(zone2_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool mov =
+          (id(target1_distance).state > 0 && std::abs(id(target1_speed).state) > thresh && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && std::abs(id(target2_speed).state) > thresh && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && std::abs(id(target3_speed).state) > thresh && in_poly(id(target3_x).state, id(target3_y).state));
+      return mov;
 
   - platform: template
     name: "Zone 3 Presence"
@@ -1214,25 +1950,39 @@ binary_sensor:
     lambda: |-
       static unsigned long last_off_3 = 0;
       unsigned long now = millis();
-      bool pres3 = (id(target1_distance).state > 0 &&
-                   id(target1_x).state >= id(zone3_x_begin).state &&
-                   id(target1_x).state <= id(zone3_x_end).state &&
-                   id(target1_y).state >= id(zone3_y_begin).state &&
-                   id(target1_y).state <= id(zone3_y_end).state)
-                || (id(target2_distance).state > 0 &&
-                   id(target2_x).state >= id(zone3_x_begin).state &&
-                   id(target2_x).state <= id(zone3_x_end).state &&
-                   id(target2_y).state >= id(zone3_y_begin).state &&
-                   id(target2_y).state <= id(zone3_y_end).state)
-                || (id(target3_distance).state > 0 &&
-                   id(target3_x).state >= id(zone3_x_begin).state &&
-                   id(target3_x).state <= id(zone3_x_end).state &&
-                   id(target3_y).state >= id(zone3_y_begin).state &&
-                   id(target3_y).state <= id(zone3_y_end).state);
-      if (pres3) {
-        last_off_3 = now;
-        return true;
-      }
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone3_points_count).state;
+      if (n < 3) return (now - last_off_3) < (unsigned long)(id(zone3_presence_delay).state * 1000.0);
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone3_p1_x).state); ys[0]=nz(id(zone3_p1_y).state);
+      xs[1]=nz(id(zone3_p2_x).state); ys[1]=nz(id(zone3_p2_y).state);
+      xs[2]=nz(id(zone3_p3_x).state); ys[2]=nz(id(zone3_p3_y).state);
+      xs[3]=nz(id(zone3_p4_x).state); ys[3]=nz(id(zone3_p4_y).state);
+      xs[4]=nz(id(zone3_p5_x).state); ys[4]=nz(id(zone3_p5_y).state);
+      xs[5]=nz(id(zone3_p6_x).state); ys[5]=nz(id(zone3_p6_y).state);
+      xs[6]=nz(id(zone3_p7_x).state); ys[6]=nz(id(zone3_p7_y).state);
+      xs[7]=nz(id(zone3_p8_x).state); ys[7]=nz(id(zone3_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool pres =
+          (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state));
+
+      if (pres) { last_off_3 = now; return true; }
       return (now - last_off_3) < (unsigned long)(id(zone3_presence_delay).state * 1000.0);
 
   - platform: template
@@ -1240,26 +1990,39 @@ binary_sensor:
     icon: mdi:motion-sensor
     device_class: motion
     lambda: |-
-      float thresh3 = id(zone3_movement_threshold).state;
-      bool mov3 = (std::abs(id(target1_speed).state) > thresh3 &&
-                   id(target1_distance).state > 0 &&
-                   id(target1_x).state >= id(zone3_x_begin).state &&
-                   id(target1_x).state <= id(zone3_x_end).state &&
-                   id(target1_y).state >= id(zone3_y_begin).state &&
-                   id(target1_y).state <= id(zone3_y_end).state)
-               || (std::abs(id(target2_speed).state) > thresh3 &&
-                   id(target2_distance).state > 0 &&
-                   id(target2_x).state >= id(zone3_x_begin).state &&
-                   id(target2_x).state <= id(zone3_x_end).state &&
-                   id(target2_y).state >= id(zone3_y_begin).state &&
-                   id(target2_y).state <= id(zone3_y_end).state)
-               || (std::abs(id(target3_speed).state) > thresh3 &&
-                   id(target3_distance).state > 0 &&
-                   id(target3_x).state >= id(zone3_x_begin).state &&
-                   id(target3_x).state <= id(zone3_x_end).state &&
-                   id(target3_y).state >= id(zone3_y_begin).state &&
-                   id(target3_y).state <= id(zone3_y_end).state);
-      return mov3;
+      float thresh = id(zone3_movement_threshold).state;
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone3_points_count).state;
+      if (n < 3) return false;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone3_p1_x).state); ys[0]=nz(id(zone3_p1_y).state);
+      xs[1]=nz(id(zone3_p2_x).state); ys[1]=nz(id(zone3_p2_y).state);
+      xs[2]=nz(id(zone3_p3_x).state); ys[2]=nz(id(zone3_p3_y).state);
+      xs[3]=nz(id(zone3_p4_x).state); ys[3]=nz(id(zone3_p4_y).state);
+      xs[4]=nz(id(zone3_p5_x).state); ys[4]=nz(id(zone3_p5_y).state);
+      xs[5]=nz(id(zone3_p6_x).state); ys[5]=nz(id(zone3_p6_y).state);
+      xs[6]=nz(id(zone3_p7_x).state); ys[6]=nz(id(zone3_p7_y).state);
+      xs[7]=nz(id(zone3_p8_x).state); ys[7]=nz(id(zone3_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool mov =
+          (id(target1_distance).state > 0 && std::abs(id(target1_speed).state) > thresh && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && std::abs(id(target2_speed).state) > thresh && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && std::abs(id(target3_speed).state) > thresh && in_poly(id(target3_x).state, id(target3_y).state));
+      return mov;
 
 text_sensor:
   - platform: wifi_info
