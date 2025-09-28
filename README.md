@@ -12,6 +12,8 @@ The Sensy-One S1 Pro Multi Sense is an open-source presence and environmental se
 
 The S1 Pro is automatically discovered in Home Assistant via BLE Improv when Bluetooth is available. If not, it starts a wireless access point for quick setup — no additional tools required.
 
+> Note: BLE Improv is temporarily disabled due to performance issues.
+
 **Powered by ESP32-C3**
 
 At its core, the S1 Pro uses the ESP32-C3-MINI-1-N4 module — offering reliable Wi-Fi and Bluetooth Low Energy, low power consumption, and full support for ESPHome and Home Assistant integrations.
