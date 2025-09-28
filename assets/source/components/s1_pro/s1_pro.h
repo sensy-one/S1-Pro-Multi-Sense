@@ -196,19 +196,56 @@ inline void LD2450::get_exclusion_zone_points(float *xs, float *ys, int &n) {
 }
 
 inline bool LD2450::is_in_exclusion_zone(float x, float y) {
-    float xs[8], ys[8];
-    int n;
-    get_exclusion_zone_points(xs, ys, n);
-    if (n == 0) return false;
+  if (!exclusion_zone_points_count) return false;
 
-    bool inside = false;
-    for (int i = 0, j = n - 1; i < n; j = i++) {
-        if (((ys[i] > y) != (ys[j] > y)) &&
-            (x < (xs[j] - xs[i]) * (y - ys[i]) / (ys[j] - ys[i]) + xs[i])) {
-            inside = !inside;
-        }
+  int n = (int) exclusion_zone_points_count->state;
+  if (n < 3) return false;
+  if (n > 8) n = 8;
+
+  static int   cached_n = -1;
+  static float xs[8], ys[8], inv_dy[8];
+  static float minx = 0, maxx = 0, miny = 0, maxy = 0;
+
+  bool changed = (cached_n != n);
+  float txs[8], tys[8];
+
+  for (int i = 0; i < n; ++i) {
+    txs[i] = exclusion_zone_points[i][0] ? exclusion_zone_points[i][0]->state : 0.0f;
+    tys[i] = exclusion_zone_points[i][1] ? exclusion_zone_points[i][1]->state : 0.0f;
+    if (!changed && (txs[i] != xs[i] || tys[i] != ys[i])) changed = true;
+  }
+
+  if (changed) {
+    cached_n = n;
+
+    minx = maxx = txs[0];
+    miny = maxy = tys[0];
+    for (int i = 0; i < n; ++i) {
+      xs[i] = txs[i];
+      ys[i] = tys[i];
+      if (xs[i] < minx) minx = xs[i];
+      if (xs[i] > maxx) maxx = xs[i];
+      if (ys[i] < miny) miny = ys[i];
+      if (ys[i] > maxy) maxy = ys[i];
     }
-    return inside;
+
+    for (int i = 0, j = n - 1; i < n; j = i++) {
+      float dy = ys[j] - ys[i];
+      inv_dy[i] = (std::fabs(dy) < 1e-6f) ? 0.0f : 1.0f / dy;
+    }
+  }
+
+  if (x < minx || x > maxx || y < miny || y > maxy) return false;
+
+  bool inside = false;
+  for (int i = 0, j = n - 1; i < n; j = i++) {
+    bool y_straddle = ((ys[i] > y) != (ys[j] > y));
+    if (y_straddle) {
+      float x_cross = (xs[j] - xs[i]) * (y - ys[i]) * inv_dy[i] + xs[i];
+      if (x < x_cross) inside = !inside;
+    }
+  }
+  return inside;
 }
 
 inline void LD2450::parse_frame(const uint8_t *b) {

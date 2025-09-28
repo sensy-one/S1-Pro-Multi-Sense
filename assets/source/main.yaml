@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.1.7"
+    version: "v1.1.8"
   on_boot:
     priority: 600
     then:
@@ -49,16 +49,12 @@ wifi:
 
 captive_portal: 
 
-esp32_improv:
-  authorizer: none
-  identify_duration: 10s
-  wifi_timeout: 1min
-
 logger:
   level: NONE
   baud_rate: 0
 
 api:
+  reboot_timeout: 0s
   on_client_connected:
     then:
       - if:
@@ -78,12 +74,13 @@ uart:
   tx_pin: GPIO21
   rx_pin: GPIO20
   baud_rate: 256000
+  rx_buffer_size: 4096 
 
 i2c:
   id: i2c_bus
   sda: GPIO5
   scl: GPIO6
-  scan: true
+  scan: false
 
 output:
   - platform: ledc
@@ -402,7 +399,7 @@ sensor:
     icon: mdi:counter
     id: all_targets_count
     unit_of_measurement: ""
-    update_interval: 250ms
+    update_interval: 1s
     lambda: |-
       int count = 0;
       if (id(target1_distance).state > 0) count++;
@@ -415,7 +412,7 @@ sensor:
     icon: mdi:counter
     id: zone1_target_count
     unit_of_measurement: ""
-    update_interval: 250ms
+    update_interval: 1s
     lambda: |-
       const int MAX_PTS = 8;
       float xs[MAX_PTS], ys[MAX_PTS];
@@ -455,7 +452,7 @@ sensor:
     icon: mdi:counter
     id: zone2_target_count
     unit_of_measurement: ""
-    update_interval: 250ms
+    update_interval: 1s
     lambda: |-
       const int MAX_PTS = 8;
       float xs[MAX_PTS], ys[MAX_PTS];
@@ -495,7 +492,7 @@ sensor:
     icon: mdi:counter
     id: zone3_target_count
     unit_of_measurement: ""
-    update_interval: 250ms
+    update_interval: 1s
     lambda: |-
       const int MAX_PTS = 8;
       float xs[MAX_PTS], ys[MAX_PTS];
@@ -661,7 +658,7 @@ sensor:
 
   - platform: ltr390
     i2c_id: i2c_bus
-    update_interval: 1s
+    update_interval: 5s
     light:
       name: "LTR390 Ambient Light (lux)"
       icon: mdi:brightness-5
@@ -685,7 +682,7 @@ sensor:
     name: "ESP32 RSSI"
     internal: true
     id: wifi_rssi_raw
-    update_interval: 1s
+    update_interval: 5s
 
 number:
   - platform: template
@@ -2025,6 +2022,7 @@ binary_sensor:
       return mov;
 
 text_sensor:
+
   - platform: wifi_info
     ip_address:
       name: "ESP32 | IP"
@@ -2041,7 +2039,7 @@ text_sensor:
     name: "ESP32 | WiFi Strength"
     entity_category: diagnostic
     icon: "mdi:signal-cellular-3"
-    update_interval: 1s
+    update_interval: 5s
     lambda: |-
       int rssi = int(id(wifi_rssi_raw).state);
       if (rssi < -90)      return {"Very Weak"};
