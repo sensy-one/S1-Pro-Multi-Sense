@@ -4,7 +4,7 @@ The all-in-one open-source sensor designed for Home Assistant, refined through r
 
 ![Sensy-One Banner](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/images/S1_Pro_Multi_Sense.jpg)
 
-The Sensy-One S1 Pro Multi Sense is an open-source presence and environmental sensor, built from the ground up with Home Assistant in mind. After extensive prototyping, firmware tuning, and valuable input from users and smart home enthusiasts, the S1 Pro brings together reliable presence detection, real-time air quality monitoring, and ambient light sensing — all in one compact, Home Assistant-ready device.
+The Sensy-One S1 Pro Multi Sense is an open-source presence and environmental sensor, built from the ground up with Home Assistant in mind. After extensive prototyping, firmware tuning, and valuable input from users and smart home enthusiasts, the S1 Pro brings together reliable presence detection, real-time air quality monitoring, and ambient light sensing — all in one compact, Home Assistant-ready device. [Explore on YouTube](https://www.youtube.com/watch?v=s2bCj49uFjw)
 
 ## ✨ Standout Specs
 
@@ -46,7 +46,7 @@ The S1 Pro supports Bluetooth-based presence and proximity detection, with seaml
 
 **Customizable detection zones**
 
-Define up to 3 detection zones (expandable to 10 in a future update), plus 1 exclusion zone to ignore movement from devices like fans or 3D printers.
+Define up to 3 detection zones, plus 1 exclusion zone to ignore movement from devices like fans or 3D printers.
 Each zone includes adjustable presence delay and motion threshold settings, and reports zone-specific data such as target count, occupancy status, and movement activity.
 
 **Full-color status LED**
@@ -92,6 +92,8 @@ Once powered, it automatically begins looking for your Home Assistant system.
 **If your Home Assistant setup supports Bluetooth (BLE):**
 - The S1 Pro will be automatically discovered under Devices & Services.
 - Click Add, enter your Wi-Fi credentials, and you're done.
+
+> Note: BLE Improv is temporarily disabled due to performance issues.
 
 **If your system does not support Bluetooth:**
 - The sensor will start a Wi-Fi access point named I am Sensy!.
@@ -167,6 +169,8 @@ Instead of adjusting multiple number entities, you can now set zones visually us
 - Save your configuration — it will be applied immediately to your device.
 
 > Note: Make sure your desktop is connected to the same network as your Home Assistant / Sensor.
+
+> Tip: If you run into trouble, you can always have a look at the [YouTube video](https://www.youtube.com/watch?v=raLACrPG8EM) for guidance.
 
 ## 🔄 Firmware on the Fly
 
