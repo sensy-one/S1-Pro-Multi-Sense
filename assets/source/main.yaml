@@ -4,10 +4,10 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.1.9"
-    
+    version: "v1.1.10"
+
   on_boot:
-    priority: 600
+  - priority: 600
     then:
       - if:
           condition:
@@ -18,6 +18,16 @@ esphome:
                 effect: "Purple Breathing"
           else:
             - lambda: '/* NaN */'
+
+  - priority: 800
+    then:
+      - lambda: |-
+          if (!isnan(id(bme688_temp_offset).state)) {
+            id(bsec_virtual_sensor)->set_temperature_offset((float) id(bme688_temp_offset).state);
+          }
+          if (!isnan(id(scd40_temp_offset).state)) {
+            id(scd40_sensor)->set_temperature_offset((float) id(scd40_temp_offset).state);
+          }
 
 script:
   - id: finish_onboarding
@@ -103,7 +113,6 @@ bme68x_bsec2_i2c:
   supply_voltage: 3.3V
   state_save_interval: 6h
   operating_age: 4d 
-  temperature_offset: 12.43
 
 globals:
   - id: flip_y_state
@@ -164,7 +173,7 @@ button:
               - switch.template.publish:
                   id: flip_y
                   state: false
-                  
+
   - platform: factory_reset
     name: "ESP32 | Factory Reset"
     id: factory_reset_btn
@@ -372,6 +381,7 @@ sensor:
     detection_range: detection_range
     flip_y: flip_y
     exclusion_zone_points_count: exclusion_zone_points_count
+
     exclusion_zone_p1_x: exclusion_zone_p1_x
     exclusion_zone_p1_y: exclusion_zone_p1_y
     exclusion_zone_p2_x: exclusion_zone_p2_x
@@ -389,6 +399,11 @@ sensor:
     exclusion_zone_p8_x: exclusion_zone_p8_x
     exclusion_zone_p8_y: exclusion_zone_p8_y
 
+    gate_radius_cm: gate_radius_cm
+    stationary_speed_thresh: stationary_speed_thresh
+    stationary_time_s: stationary_time_s
+    dropout_hold_m: dropout_hold_m
+
     tracking_mode:
       name: "RADAR | Tracking Mode"
       id: radar_tracking_mode
@@ -400,6 +415,22 @@ sensor:
      id: radar_bluetooth_state
      entity_category: diagnostic
      icon: mdi:bluetooth
+
+    target1_state:
+      name: "Target 1 State"
+      id: radar_target1_state
+      icon: mdi:account-check
+
+    target2_state:
+      name: "Target 2 State"
+      id: radar_target2_state
+      icon: mdi:account-check
+
+    target3_state:
+      name: "Target 3 State"
+      id: radar_target3_state
+      icon: mdi:account-check
+
 
   - platform: template
     name: "All Targets Count"
@@ -544,8 +575,7 @@ sensor:
     measurement_mode: periodic
     automatic_self_calibration: false
     ambient_pressure_compensation_source: bme_pressure
-    update_interval: 5s  
-    temperature_offset: 17.02         
+    update_interval: 5s      
     co2:
       name: "SCD40 CO₂ Concentration"
       id: scd_co2
@@ -566,15 +596,12 @@ sensor:
     temperature:
       name: "BME688 Temperature"
       id: bme_temp
-      sample_rate: LP
     pressure:
       name: "BME688 Pressure"
       id: bme_pressure
-      sample_rate: LP
     humidity:
       name: "BME688 Humidity"
       id: bme_rh
-      sample_rate: LP
     gas_resistance:
       name: "BME688 Gas Resistance (kΩ)"
       unit_of_measurement: "kΩ"
@@ -598,21 +625,16 @@ sensor:
     light:
       name: "LTR390 Ambient Light (lux)"
       icon: mdi:brightness-5
-      filters:
-        - lambda: |-
-            return (x - id(ltr390_lux_offset).state) * 5.0;
     uv_index:
       name: "LTR390 UV Index"
       icon: mdi:weather-sunset
-      filters:
-        - lambda: |-
-            return (x - id(ltr390_uv_offset).state) * 2.5; 
     gain:
       ambient_light: X1
-      uv: X18
+      uv: X1
     resolution:
       ambient_light: 20
       uv: 20
+    window_correction_factor: 2.3
 
   - platform: wifi_signal
     name: "ESP32 RSSI"
@@ -1656,6 +1678,94 @@ number:
             - output.set_level:
                 id: mlt8530_buzzer
                 level: !lambda 'return x;'
+
+  - platform: template
+    id: scd40_temp_offset
+    name: "SCD40 Temp Offset"
+    icon: mdi:thermometer-plus
+    unit_of_measurement: "°C"
+    min_value: -50
+    max_value: 50
+    step: 0.01
+    initial_value: 17.02
+    optimistic: true
+    restore_value: true
+    mode: box
+    on_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(scd40_sensor)->set_temperature_offset((float) x);
+          }
+
+  - platform: template
+    id: bme688_temp_offset
+    name: "BME688 Temp Offset"
+    icon: mdi:thermometer-plus
+    unit_of_measurement: "°C"
+    min_value: -50
+    max_value: 50
+    step: 0.01
+    initial_value: 12.43
+    optimistic: true
+    restore_value: true
+    mode: box
+    on_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(bsec_virtual_sensor)->set_temperature_offset((float) x);
+          }
+
+  - platform: template
+    id: gate_radius_cm
+    name: "RADAR Gate Radius"
+    icon: mdi:crosshairs-gps
+    unit_of_measurement: "cm"
+    min_value: 5
+    max_value: 300
+    step: 1
+    initial_value: 120
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: stationary_speed_thresh
+    name: "RADAR Stationary Speed Threshold"
+    icon: mdi:speedometer-slow
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 45
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: stationary_time_s
+    name: "RADAR Stationary Time"
+    icon: mdi:timer-sand
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 30
+    step: 1
+    initial_value: 5
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: dropout_hold_m
+    name: "RADAR Dropout Hold Time"
+    icon: mdi:timer-lock-outline
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 60
+    step: 1
+    initial_value: 15
+    optimistic: true
+    restore_value: true
+    mode: box
 
 binary_sensor:
   - platform: status
