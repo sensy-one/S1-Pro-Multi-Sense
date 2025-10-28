@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.1.10"
+    version: "v1.1.11"
 
   on_boot:
   - priority: 600
@@ -21,6 +21,8 @@ esphome:
 
   - priority: 800
     then:
+      - lambda: |-
+          id(holding_enabled_bool) = id(holding_switch_internal).state;
       - lambda: |-
           if (!isnan(id(bme688_temp_offset).state)) {
             id(bsec_virtual_sensor)->set_temperature_offset((float) id(bme688_temp_offset).state);
@@ -119,11 +121,16 @@ globals:
     type: bool
     restore_value: true
     initial_value: 'false'
-    
+
   - id: onboarding_done
     type: bool
     restore_value: true
     initial_value: 'false'
+
+  - id: holding_enabled_bool
+    type: bool
+    restore_value: true
+    initial_value: 'true'
 
 light:
   - platform: esp32_rmt_led_strip
@@ -275,6 +282,14 @@ button:
         - lambda: |-
             id(s1_sensor)->restart_module();
 
+  - platform: template
+    name: "RADAR | Toggle Holding Engine"
+    id: radar_toggle_holding_btn
+    icon: mdi:account-clock
+    entity_category: config
+    on_press:
+      - switch.toggle: holding_switch
+
 switch:
   - platform: template
     id: flip_y
@@ -298,6 +313,32 @@ switch:
       - output.set_level:
           id: mlt8530_buzzer
           level: 0.0
+
+  - platform: template
+    id: holding_switch
+    name: "RADAR | Holding Engine"
+    icon: mdi:account-clock
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF         
+    turn_on_action:
+      - lambda: |
+          id(holding_enabled_bool) = true;
+      - switch.template.publish:
+          id: holding_switch_internal
+          state: true
+    turn_off_action:
+      - lambda: |
+          id(holding_enabled_bool) = false;
+      - switch.template.publish:
+          id: holding_switch_internal
+          state: false
+
+  - platform: template
+    id: holding_switch_internal
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
 
 sensor:
   - platform: s1_pro
@@ -403,6 +444,7 @@ sensor:
     stationary_speed_thresh: stationary_speed_thresh
     stationary_time_s: stationary_time_s
     dropout_hold_m: dropout_hold_m
+    holding_enabled: holding_switch_internal
 
     tracking_mode:
       name: "RADAR | Tracking Mode"
@@ -1723,7 +1765,7 @@ number:
     min_value: 5
     max_value: 300
     step: 1
-    initial_value: 120
+    initial_value: 100
     optimistic: true
     restore_value: true
     mode: box
@@ -1747,9 +1789,9 @@ number:
     icon: mdi:timer-sand
     unit_of_measurement: "s"
     min_value: 0
-    max_value: 30
+    max_value: 120
     step: 1
-    initial_value: 5
+    initial_value: 55
     optimistic: true
     restore_value: true
     mode: box
