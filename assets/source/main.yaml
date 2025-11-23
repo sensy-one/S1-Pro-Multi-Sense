@@ -661,9 +661,10 @@ sensor:
     co2_equivalent:
       name: "BME688 CO₂ Equivalent"
       id: bme_co2_eq
-      # No "device_class:" eCO₂ is calculated from VOC readings, not actual CO₂ concentration
-      # The carbon_dioxide device_class is only for direct CO₂ measurements
       icon: "mdi:molecule-co2"
+      # No "device_class:", eCO₂ is calculated from VOC readings, not actual CO₂ concentration
+      # The carbon_dioxide device_class is only for direct CO₂ measurements
+      device_class: ""
       unit_of_measurement: "ppm"
       accuracy_decimals: 0
       state_class: measurement
