@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.1.11"
+    version: "v1.1.12"  
 
   on_boot:
   - priority: 600
@@ -281,14 +281,6 @@ button:
         - delay: 250ms
         - lambda: |-
             id(s1_sensor)->restart_module();
-
-  - platform: template
-    name: "RADAR | Toggle Holding Engine"
-    id: radar_toggle_holding_btn
-    icon: mdi:account-clock
-    entity_category: config
-    on_press:
-      - switch.toggle: holding_switch
 
 switch:
   - platform: template
@@ -629,7 +621,11 @@ sensor:
         - or:
            - throttle_average: 300s
            - delta: 20
-        - debounce: 1s   
+        - debounce: 1s 
+      device_class: carbon_dioxide
+      unit_of_measurement: "ppm"
+      accuracy_decimals: 0
+      state_class: measurement
     temperature:
       name: "SCD40 Temperature"
       id: scd40_temp
@@ -642,7 +638,7 @@ sensor:
         - or:
            - throttle_average: 300s
            - delta: 0.1
-        - debounce: 1s      
+        - debounce: 1s 
     humidity:
       name: "SCD40 Humidity"
       id: scd40_rh
@@ -661,7 +657,6 @@ sensor:
     temperature:
       name: "BME688 Temperature"
       id: bme_temp
-      sample_rate: LP
       filters:
         - exponential_moving_average:
            alpha: 0.03
@@ -673,7 +668,6 @@ sensor:
     pressure:
       name: "BME688 Pressure"
       id: bme_pressure
-      sample_rate: LP
       filters:
         - exponential_moving_average:
            alpha: 0.03
@@ -685,7 +679,6 @@ sensor:
     humidity:
       name: "BME688 Humidity"
       id: bme_rh
-      sample_rate: LP
       filters:
         - exponential_moving_average:
            alpha: 0.03
@@ -705,7 +698,7 @@ sensor:
         - throttle_average: 600s
     iaq:
       name: "BME688 IAQ"
-      id: iaq
+      id: bme_iaq
       filters:
         - exponential_moving_average:
            alpha: 0.03
@@ -713,14 +706,11 @@ sensor:
         - or:
            - throttle_average: 300s
            - delta: 5
-        - debounce: 1s    
+        - debounce: 1s  
     co2_equivalent:
       name: "BME688 CO₂ Equivalent"
       id: bme_co2_eq
       icon: "mdi:molecule-co2"
-      # No "device_class:", eCO₂ is calculated from VOC readings, not actual CO₂ concentration
-      # The carbon_dioxide device_class is only for direct CO₂ measurements
-      device_class: ""
       unit_of_measurement: "ppm"
       accuracy_decimals: 0
       state_class: measurement
@@ -731,12 +721,17 @@ sensor:
   - platform: ltr390
     i2c_id: i2c_bus
     update_interval: 5s
+
     light:
       name: "LTR390 Ambient Light (lux)"
+      id: ltr390_lux_raw
       icon: mdi:brightness-5
       filters:
         - lambda: |-
-            return (x - id(ltr390_lux_offset).state) * 5.0;
+            if (isnan(x) || isnan(id(ltr390_lux_offset).state)) {
+              return x;
+            }
+            return x + id(ltr390_lux_offset).state;
         - exponential_moving_average:
            alpha: 0.03
            send_every: 2
@@ -744,12 +739,17 @@ sensor:
            - throttle_average: 300s
            - delta: 0.1
         - debounce: 1s
+
     uv_index:
       name: "LTR390 UV Index"
+      id: ltr390_uv_raw
       icon: mdi:weather-sunset
       filters:
         - lambda: |-
-            return (x - id(ltr390_uv_offset).state) * 2.5; 
+            if (isnan(x) || isnan(id(ltr390_uv_offset).state)) {
+              return x;
+            }
+            return x + id(ltr390_uv_offset).state;
         - exponential_moving_average:
            alpha: 0.03
            send_every: 2
@@ -757,6 +757,7 @@ sensor:
            - throttle_average: 300s
            - delta: 0.01
         - debounce: 1s
+
     gain:
       ambient_light: X1
       uv: X1
