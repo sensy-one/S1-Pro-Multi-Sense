@@ -622,31 +622,78 @@ sensor:
       name: "SCD40 CO₂ Concentration"
       id: scd_co2
       icon: "mdi:molecule-co2"
-      device_class: carbon_dioxide
-      unit_of_measurement: "ppm"
-      accuracy_decimals: 0
-      state_class: measurement
+      filters:
+        - exponential_moving_average:
+             alpha: 0.03
+             send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 20
+        - debounce: 1s   
     temperature:
       name: "SCD40 Temperature"
       id: scd40_temp
       unit_of_measurement: "°C"
       icon: "mdi:thermometer"
+      filters:
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 0.1
+        - debounce: 1s      
     humidity:
       name: "SCD40 Humidity"
       id: scd40_rh
       unit_of_measurement: "%"
       icon: "mdi:water-percent"
+      filters:
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 0.5
+        - debounce: 1s
 
   - platform: bme68x_bsec2
     temperature:
       name: "BME688 Temperature"
       id: bme_temp
+      sample_rate: LP
+      filters:
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 0.1
+        - debounce: 1s
     pressure:
       name: "BME688 Pressure"
       id: bme_pressure
+      sample_rate: LP
+      filters:
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 600s
+           - delta: 10
+        - debounce: 1s
     humidity:
       name: "BME688 Humidity"
       id: bme_rh
+      sample_rate: LP
+      filters:
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 0.5
+        - debounce: 1s
     gas_resistance:
       name: "BME688 Gas Resistance (kΩ)"
       id: bme_gas_resistance_kohm
@@ -655,9 +702,18 @@ sensor:
       icon: mdi:omega
       filters:
         - multiply: 0.001
+        - throttle_average: 600s
     iaq:
       name: "BME688 IAQ"
-      id: bme_iaq
+      id: iaq
+      filters:
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 5
+        - debounce: 1s    
     co2_equivalent:
       name: "BME688 CO₂ Equivalent"
       id: bme_co2_eq
@@ -678,9 +734,29 @@ sensor:
     light:
       name: "LTR390 Ambient Light (lux)"
       icon: mdi:brightness-5
+      filters:
+        - lambda: |-
+            return (x - id(ltr390_lux_offset).state) * 5.0;
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 0.1
+        - debounce: 1s
     uv_index:
       name: "LTR390 UV Index"
       icon: mdi:weather-sunset
+      filters:
+        - lambda: |-
+            return (x - id(ltr390_uv_offset).state) * 2.5; 
+        - exponential_moving_average:
+           alpha: 0.03
+           send_every: 2
+        - or:
+           - throttle_average: 300s
+           - delta: 0.01
+        - debounce: 1s
     gain:
       ambient_light: X1
       uv: X1
