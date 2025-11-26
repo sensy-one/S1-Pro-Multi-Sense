@@ -4,10 +4,10 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.1.9"
-    
+    version: "v1.1.11"
+
   on_boot:
-    priority: 600
+  - priority: 600
     then:
       - if:
           condition:
@@ -18,6 +18,18 @@ esphome:
                 effect: "Purple Breathing"
           else:
             - lambda: '/* NaN */'
+
+  - priority: 800
+    then:
+      - lambda: |-
+          id(holding_enabled_bool) = id(holding_switch_internal).state;
+      - lambda: |-
+          if (!isnan(id(bme688_temp_offset).state)) {
+            id(bsec_virtual_sensor)->set_temperature_offset((float) id(bme688_temp_offset).state);
+          }
+          if (!isnan(id(scd40_temp_offset).state)) {
+            id(scd40_sensor)->set_temperature_offset((float) id(scd40_temp_offset).state);
+          }
 
 script:
   - id: finish_onboarding
@@ -103,18 +115,22 @@ bme68x_bsec2_i2c:
   supply_voltage: 3.3V
   state_save_interval: 6h
   operating_age: 4d 
-  temperature_offset: 12.43
 
 globals:
   - id: flip_y_state
     type: bool
     restore_value: true
     initial_value: 'false'
-    
+
   - id: onboarding_done
     type: bool
     restore_value: true
     initial_value: 'false'
+
+  - id: holding_enabled_bool
+    type: bool
+    restore_value: true
+    initial_value: 'true'
 
 light:
   - platform: esp32_rmt_led_strip
@@ -164,7 +180,7 @@ button:
               - switch.template.publish:
                   id: flip_y
                   state: false
-                  
+
   - platform: factory_reset
     name: "ESP32 | Factory Reset"
     id: factory_reset_btn
@@ -266,6 +282,14 @@ button:
         - lambda: |-
             id(s1_sensor)->restart_module();
 
+  - platform: template
+    name: "RADAR | Toggle Holding Engine"
+    id: radar_toggle_holding_btn
+    icon: mdi:account-clock
+    entity_category: config
+    on_press:
+      - switch.toggle: holding_switch
+
 switch:
   - platform: template
     id: flip_y
@@ -289,6 +313,32 @@ switch:
       - output.set_level:
           id: mlt8530_buzzer
           level: 0.0
+
+  - platform: template
+    id: holding_switch
+    name: "RADAR | Holding Engine"
+    icon: mdi:account-clock
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF         
+    turn_on_action:
+      - lambda: |
+          id(holding_enabled_bool) = true;
+      - switch.template.publish:
+          id: holding_switch_internal
+          state: true
+    turn_off_action:
+      - lambda: |
+          id(holding_enabled_bool) = false;
+      - switch.template.publish:
+          id: holding_switch_internal
+          state: false
+
+  - platform: template
+    id: holding_switch_internal
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
 
 sensor:
   - platform: s1_pro
@@ -372,6 +422,7 @@ sensor:
     detection_range: detection_range
     flip_y: flip_y
     exclusion_zone_points_count: exclusion_zone_points_count
+
     exclusion_zone_p1_x: exclusion_zone_p1_x
     exclusion_zone_p1_y: exclusion_zone_p1_y
     exclusion_zone_p2_x: exclusion_zone_p2_x
@@ -389,6 +440,12 @@ sensor:
     exclusion_zone_p8_x: exclusion_zone_p8_x
     exclusion_zone_p8_y: exclusion_zone_p8_y
 
+    gate_radius_cm: gate_radius_cm
+    stationary_speed_thresh: stationary_speed_thresh
+    stationary_time_s: stationary_time_s
+    dropout_hold_m: dropout_hold_m
+    holding_enabled: holding_switch_internal
+
     tracking_mode:
       name: "RADAR | Tracking Mode"
       id: radar_tracking_mode
@@ -400,6 +457,22 @@ sensor:
      id: radar_bluetooth_state
      entity_category: diagnostic
      icon: mdi:bluetooth
+
+    target1_state:
+      name: "Target 1 State"
+      id: radar_target1_state
+      icon: mdi:account-check
+
+    target2_state:
+      name: "Target 2 State"
+      id: radar_target2_state
+      icon: mdi:account-check
+
+    target3_state:
+      name: "Target 3 State"
+      id: radar_target3_state
+      icon: mdi:account-check
+
 
   - platform: template
     name: "All Targets Count"
@@ -544,12 +617,10 @@ sensor:
     measurement_mode: periodic
     automatic_self_calibration: false
     ambient_pressure_compensation_source: bme_pressure
-    update_interval: 5s  
-    temperature_offset: 17.02         
+    update_interval: 5s      
     co2:
       name: "SCD40 CO₂ Concentration"
       id: scd_co2
-      unit_of_measurement: "ppm"
       icon: "mdi:molecule-co2"
       filters:
         - exponential_moving_average:
@@ -625,6 +696,7 @@ sensor:
         - debounce: 1s
     gas_resistance:
       name: "BME688 Gas Resistance (kΩ)"
+      id: bme_gas_resistance_kohm
       unit_of_measurement: "kΩ"
       accuracy_decimals: 1
       icon: mdi:omega
@@ -644,10 +716,17 @@ sensor:
         - debounce: 1s    
     co2_equivalent:
       name: "BME688 CO₂ Equivalent"
+      id: bme_co2_eq
+      icon: "mdi:molecule-co2"
+      # No "device_class:", eCO₂ is calculated from VOC readings, not actual CO₂ concentration
+      # The carbon_dioxide device_class is only for direct CO₂ measurements
+      device_class: ""
+      unit_of_measurement: "ppm"
+      accuracy_decimals: 0
+      state_class: measurement
     breath_voc_equivalent:
       name: "BME688 VOC Equivalent"
-      state_class: measurement
-      device_class: volatile_organic_compounds
+      id: bme_voc_eq
 
   - platform: ltr390
     i2c_id: i2c_bus
@@ -680,10 +759,11 @@ sensor:
         - debounce: 1s
     gain:
       ambient_light: X1
-      uv: X18
+      uv: X1
     resolution:
       ambient_light: 20
       uv: 20
+    window_correction_factor: 2.3
 
   - platform: wifi_signal
     name: "ESP32 RSSI"
@@ -1728,6 +1808,94 @@ number:
                 id: mlt8530_buzzer
                 level: !lambda 'return x;'
 
+  - platform: template
+    id: scd40_temp_offset
+    name: "SCD40 Temp Offset"
+    icon: mdi:thermometer-plus
+    unit_of_measurement: "°C"
+    min_value: -50
+    max_value: 50
+    step: 0.01
+    initial_value: 17.02
+    optimistic: true
+    restore_value: true
+    mode: box
+    on_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(scd40_sensor)->set_temperature_offset((float) x);
+          }
+
+  - platform: template
+    id: bme688_temp_offset
+    name: "BME688 Temp Offset"
+    icon: mdi:thermometer-plus
+    unit_of_measurement: "°C"
+    min_value: -50
+    max_value: 50
+    step: 0.01
+    initial_value: 12.43
+    optimistic: true
+    restore_value: true
+    mode: box
+    on_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(bsec_virtual_sensor)->set_temperature_offset((float) x);
+          }
+
+  - platform: template
+    id: gate_radius_cm
+    name: "RADAR Gate Radius"
+    icon: mdi:crosshairs-gps
+    unit_of_measurement: "cm"
+    min_value: 5
+    max_value: 300
+    step: 1
+    initial_value: 100
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: stationary_speed_thresh
+    name: "RADAR Stationary Speed Threshold"
+    icon: mdi:speedometer-slow
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 45
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: stationary_time_s
+    name: "RADAR Stationary Time"
+    icon: mdi:timer-sand
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 120
+    step: 1
+    initial_value: 55
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: dropout_hold_m
+    name: "RADAR Dropout Hold Time"
+    icon: mdi:timer-lock-outline
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 60
+    step: 1
+    initial_value: 15
+    optimistic: true
+    restore_value: true
+    mode: box
+
 binary_sensor:
   - platform: status
     name: "ESP32 | Status"
@@ -2037,25 +2205,25 @@ text_sensor:
     name: "BME688 IAQ Classification"
     icon: mdi:air-filter
     lambda: |-
-      if ( int(id(iaq).state) <= 50) {
+      if ( int(id(bme_iaq).state) <= 50) {
         return {"Excellent"};
       }
-      else if (int(id(iaq).state) >= 51 && int(id(iaq).state) <= 100) {
+      else if (int(id(bme_iaq).state) >= 51 && int(id(bme_iaq).state) <= 100) {
         return {"Good"};
       }
-      else if (int(id(iaq).state) >= 101 && int(id(iaq).state) <= 150) {
+      else if (int(id(bme_iaq).state) >= 101 && int(id(bme_iaq).state) <= 150) {
         return {"Lightly polluted"};
       }
-      else if (int(id(iaq).state) >= 151 && int(id(iaq).state) <= 200) {
+      else if (int(id(bme_iaq).state) >= 151 && int(id(bme_iaq).state) <= 200) {
         return {"Moderately polluted"};
       }
-      else if (int(id(iaq).state) >= 201 && int(id(iaq).state) <= 250) {
+      else if (int(id(bme_iaq).state) >= 201 && int(id(bme_iaq).state) <= 250) {
         return {"Heavily polluted"};
       }
-      else if (int(id(iaq).state) >= 251 && int(id(iaq).state) <= 350) {
+      else if (int(id(bme_iaq).state) >= 251 && int(id(bme_iaq).state) <= 350) {
         return {"Severely polluted"};
       }
-      else if (int(id(iaq).state) >= 351) {
+      else if (int(id(bme_iaq).state) >= 351) {
         return {"Extremely polluted"};
       }
       else {
