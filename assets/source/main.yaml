@@ -621,8 +621,11 @@ sensor:
     co2:
       name: "SCD40 CO₂ Concentration"
       id: scd_co2
-      unit_of_measurement: "ppm"
       icon: "mdi:molecule-co2"
+      device_class: carbon_dioxide
+      unit_of_measurement: "ppm"
+      accuracy_decimals: 0
+      state_class: measurement
     temperature:
       name: "SCD40 Temperature"
       id: scd40_temp
@@ -646,6 +649,7 @@ sensor:
       id: bme_rh
     gas_resistance:
       name: "BME688 Gas Resistance (kΩ)"
+      id: bme_gas_resistance_kohm
       unit_of_measurement: "kΩ"
       accuracy_decimals: 1
       icon: mdi:omega
@@ -653,13 +657,20 @@ sensor:
         - multiply: 0.001
     iaq:
       name: "BME688 IAQ"
-      id: iaq
+      id: bme_iaq
     co2_equivalent:
       name: "BME688 CO₂ Equivalent"
+      id: bme_co2_eq
+      icon: "mdi:molecule-co2"
+      # No "device_class:", eCO₂ is calculated from VOC readings, not actual CO₂ concentration
+      # The carbon_dioxide device_class is only for direct CO₂ measurements
+      device_class: ""
+      unit_of_measurement: "ppm"
+      accuracy_decimals: 0
+      state_class: measurement
     breath_voc_equivalent:
       name: "BME688 VOC Equivalent"
-      state_class: measurement
-      device_class: volatile_organic_compounds
+      id: bme_voc_eq
 
   - platform: ltr390
     i2c_id: i2c_bus
@@ -2118,25 +2129,25 @@ text_sensor:
     name: "BME688 IAQ Classification"
     icon: mdi:air-filter
     lambda: |-
-      if ( int(id(iaq).state) <= 50) {
+      if ( int(id(bme_iaq).state) <= 50) {
         return {"Excellent"};
       }
-      else if (int(id(iaq).state) >= 51 && int(id(iaq).state) <= 100) {
+      else if (int(id(bme_iaq).state) >= 51 && int(id(bme_iaq).state) <= 100) {
         return {"Good"};
       }
-      else if (int(id(iaq).state) >= 101 && int(id(iaq).state) <= 150) {
+      else if (int(id(bme_iaq).state) >= 101 && int(id(bme_iaq).state) <= 150) {
         return {"Lightly polluted"};
       }
-      else if (int(id(iaq).state) >= 151 && int(id(iaq).state) <= 200) {
+      else if (int(id(bme_iaq).state) >= 151 && int(id(bme_iaq).state) <= 200) {
         return {"Moderately polluted"};
       }
-      else if (int(id(iaq).state) >= 201 && int(id(iaq).state) <= 250) {
+      else if (int(id(bme_iaq).state) >= 201 && int(id(bme_iaq).state) <= 250) {
         return {"Heavily polluted"};
       }
-      else if (int(id(iaq).state) >= 251 && int(id(iaq).state) <= 350) {
+      else if (int(id(bme_iaq).state) >= 251 && int(id(bme_iaq).state) <= 350) {
         return {"Severely polluted"};
       }
-      else if (int(id(iaq).state) >= 351) {
+      else if (int(id(bme_iaq).state) >= 351) {
         return {"Extremely polluted"};
       }
       else {
