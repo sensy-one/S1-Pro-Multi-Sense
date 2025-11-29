@@ -13,13 +13,15 @@ namespace s1_pro {
 class LD2450 : public Component, public uart::UARTDevice {
  public:
   LD2450();
+
   void set_detection_range(number::Number *range) { detection_range = range; }
   void set_flip_y(switch_::Switch *sw) { flip_y = sw; }
-  void set_tracking_mode_sensor(text_sensor::TextSensor *ts) { tracking_mode_ = ts; }
   void set_bluetooth_state_sensor(text_sensor::TextSensor *ts) { bluetooth_state_ = ts; }
+
   void set_target1_state_sensor(text_sensor::TextSensor *ts) { target1_state = ts; }
   void set_target2_state_sensor(text_sensor::TextSensor *ts) { target2_state = ts; }
   void set_target3_state_sensor(text_sensor::TextSensor *ts) { target3_state = ts; }
+
   void set_exclusion_zone_points_count(number::Number *count) { exclusion_zone_points_count = count; }
   void set_exclusion_zone_p1_x(number::Number *p) { exclusion_zone_points[0][0] = p; }
   void set_exclusion_zone_p1_y(number::Number *p) { exclusion_zone_points[0][1] = p; }
@@ -37,6 +39,7 @@ class LD2450 : public Component, public uart::UARTDevice {
   void set_exclusion_zone_p7_y(number::Number *p) { exclusion_zone_points[6][1] = p; }
   void set_exclusion_zone_p8_x(number::Number *p) { exclusion_zone_points[7][0] = p; }
   void set_exclusion_zone_p8_y(number::Number *p) { exclusion_zone_points[7][1] = p; }
+
   void set_gate_radius_cm(number::Number *n) { gate_radius_cm = n; }
   void set_stationary_speed_thresh(number::Number *n) { stationary_speed_thresh = n; }
   void set_stationary_time_s(number::Number *n) { stationary_time_s = n; }
@@ -49,6 +52,7 @@ class LD2450 : public Component, public uart::UARTDevice {
   void restore_factory_settings();
   void turn_bluetooth_on();
   void turn_bluetooth_off();
+
   void setup() override;
   void loop() override;
 
@@ -90,8 +94,8 @@ class LD2450 : public Component, public uart::UARTDevice {
 
   number::Number *detection_range{nullptr};
   switch_::Switch *flip_y{nullptr};
-  text_sensor::TextSensor *tracking_mode_{nullptr};
   text_sensor::TextSensor *bluetooth_state_{nullptr};
+
   number::Number *exclusion_zone_points_count{nullptr};
   number::Number *exclusion_zone_points[8][2]{};
 
@@ -126,7 +130,6 @@ inline LD2450::LD2450()
   target3_speed    = new sensor::Sensor();
   target3_distance = new sensor::Sensor();
 
-  tracking_mode_   = new text_sensor::TextSensor();
   bluetooth_state_ = new text_sensor::TextSensor();
   target1_state    = new text_sensor::TextSensor();
   target2_state    = new text_sensor::TextSensor();
@@ -166,11 +169,6 @@ inline void LD2450::turn_bluetooth_off() {
 }
 
 inline void LD2450::setup() {
-  if (tracking_mode_) tracking_mode_->publish_state("Multi");
-  set_multi_target_tracking();
-  if (bluetooth_state_) bluetooth_state_->publish_state("Off");
-  turn_bluetooth_off();
-  restart_module();
 }
 
 inline void LD2450::loop() {
@@ -202,14 +200,6 @@ inline void LD2450::handle_ack_data(const uint8_t *buffer, int len) {
   if (buffer[0]!=0xFD||buffer[1]!=0xFC||buffer[2]!=0xFB||buffer[3]!=0xFA) return;
   if (buffer[7]!=0x01) return;
   if (twoByteToUint(buffer[8],buffer[9])!=0x00) return;
-  uint8_t cmd = buffer[6];
-  if (tracking_mode_) {
-    if (cmd == 0x80) {
-      tracking_mode_->publish_state("Single");
-    } else if (cmd == 0x90) {
-      tracking_mode_->publish_state("Multi");
-    }
-  }
 }
 
 inline bool LD2450::is_in_exclusion_zone(float x, float y) {
@@ -217,11 +207,14 @@ inline bool LD2450::is_in_exclusion_zone(float x, float y) {
   int n = (int) exclusion_zone_points_count->state;
   if (n < 3) return false;
   if (n > 8) n = 8;
+
   static int   cached_n = -1;
   static float xs[8], ys[8], inv_dy[8];
   static float minx = 0, maxx = 0, miny = 0, maxy = 0;
+
   bool changed = (cached_n != n);
   float txs[8], tys[8];
+
   for (int i = 0; i < n; ++i) {
     txs[i] = exclusion_zone_points[i][0] ? exclusion_zone_points[i][0]->state : 0.0f;
     tys[i] = exclusion_zone_points[i][1] ? exclusion_zone_points[i][1]->state : 0.0f;
@@ -247,6 +240,7 @@ inline bool LD2450::is_in_exclusion_zone(float x, float y) {
   }
 
   if (x < minx || x > maxx || y < miny || y > maxy) return false;
+
   bool inside = false;
   for (int i = 0, j = n - 1; i < n; j = i++) {
     bool y_straddle = ((ys[i] > y) != (ys[j] > y));
@@ -351,7 +345,6 @@ inline void LD2450::update_track_(int t, bool meas_valid,
     return;
 
   } else {
-
     if (!hold_perm) {
       tr = Track{};
       publish_zero_(t);
@@ -359,7 +352,7 @@ inline void LD2450::update_track_(int t, bool meas_valid,
     }
 
     if (tr.has_fix) {
-      const float range_cm     = nz_(detection_range, 600.0f);
+      const float range_cm      = nz_(detection_range, 600.0f);
       const bool near_max_range = (range_cm > 0.0f) && (tr.dist >= (range_cm - EDGE_MARGIN_CM));
 
       bool near_fov_edge_or_outside = false;
@@ -378,12 +371,14 @@ inline void LD2450::update_track_(int t, bool meas_valid,
         return;
       }
     }
+
     if (tr.has_fix && tr.held) {
       if ((now - tr.last_update_ms) <= hold_min * 60000UL) {
         publish_track_(t, tr);
         return;
       }
     }
+
     tr = Track{};
     publish_zero_(t);
   }
@@ -400,12 +395,15 @@ inline void LD2450::parse_frame(const uint8_t *b) {
     int base = 4 + t*8;
     auto raw16 = [&](int off){ return uint16_t(b[base+off])|(uint16_t(b[base+off+1])<<8); };
     auto to_s  = [&](uint16_t v){ return (v&0x8000)?int16_t(v&0x7FFF):-int16_t(v&0x7FFF); };
+
     float x_cm  = float(to_s(raw16(0)))/10.0f;
     float y_cm  = float(to_s(raw16(2)))/10.0f;
     float speed = float(to_s(raw16(4)));
     float dist  = std::sqrt(x_cm*x_cm + y_cm*y_cm);
     float angle = (dist>0.0f)?(std::atan2(x_cm, y_cm) * 180.0f / M_PI):0.0f;
+
     if (do_flip) { x_cm = -x_cm; angle = -angle; }
+
     bool valid = (dist > 0.0f) && (dist <= range_cm) && !is_in_exclusion_zone(x_cm, y_cm);
     update_track_(t, valid, x_cm, y_cm, angle, speed, dist, now);
   }
@@ -414,11 +412,13 @@ inline void LD2450::parse_frame(const uint8_t *b) {
 inline void LD2450::send_command(const uint8_t *command,size_t length){
   static const uint8_t enable_cmd[]={0xFD,0xFC,0xFB,0xFA,0x04,0x00,0xFF,0x00,0x01,0x00,0x04,0x03,0x02,0x01};
   write_array(enable_cmd,sizeof(enable_cmd));
+
   static const uint8_t header[]={0xFD,0xFC,0xFB,0xFA};
   uint8_t full_cmd[sizeof(header)+length];
   memcpy(full_cmd,header,sizeof(header));
   memcpy(full_cmd+sizeof(header),command,length);
   write_array(full_cmd,sizeof(header)+length);
+
   static const uint8_t disable_cmd[]={0xFD,0xFC,0xFB,0xFA,0x02,0x00,0xFE,0x00,0x04,0x03,0x02,0x01};
   write_array(disable_cmd,sizeof(disable_cmd));
 }

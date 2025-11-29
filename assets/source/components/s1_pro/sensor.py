@@ -8,15 +8,17 @@ AUTO_LOAD = ["sensor", "text_sensor", "number"]
 
 ns = cg.esphome_ns.namespace("s1_pro")
 LD2450 = ns.class_("LD2450", cg.Component, uart.UARTDevice)
+
 CONF_DETECTION_RANGE = "detection_range"
 CONF_FLIP_Y = "flip_y"
-CONF_TRACKING_MODE = "tracking_mode"
 CONF_BLUETOOTH_STATE = "bluetooth_state"
 CONF_TARGET1_STATE = "target1_state"
 CONF_TARGET2_STATE = "target2_state"
 CONF_TARGET3_STATE = "target3_state"
+
 CONF_EXCLUSION_ZONE_POINTS_COUNT = "exclusion_zone_points_count"
 EXCLUSION_ZONE_KEYS = [f"exclusion_zone_p{i}_{axis}" for i in range(1, 9) for axis in "xy"]
+
 CONF_GATE_RADIUS_CM = "gate_radius_cm"
 CONF_STATIONARY_SPEED_THRESH = "stationary_speed_thresh"
 CONF_STATIONARY_TIME_S = "stationary_time_s"
@@ -30,27 +32,33 @@ SENSOR_KEYS = [
     "target3_x", "target3_y", "target3_angle", "target3_speed", "target3_distance",
 ]
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(LD2450),
-    cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
-    **{cv.Required(key): sensor.sensor_schema() for key in SENSOR_KEYS},
-    cv.Required(CONF_DETECTION_RANGE): cv.use_id(number.Number),
-    cv.Required(CONF_FLIP_Y): cv.use_id(_switch.Switch),
-    cv.Required(CONF_TRACKING_MODE): text_sensor.text_sensor_schema(),
-    cv.Optional(CONF_BLUETOOTH_STATE): text_sensor.text_sensor_schema(),
-    cv.Optional(CONF_TARGET1_STATE): text_sensor.text_sensor_schema(),
-    cv.Optional(CONF_TARGET2_STATE): text_sensor.text_sensor_schema(),
-    cv.Optional(CONF_TARGET3_STATE): text_sensor.text_sensor_schema(),
-    cv.Optional(CONF_EXCLUSION_ZONE_POINTS_COUNT): cv.use_id(number.Number),
-    **{cv.Optional(key): cv.use_id(number.Number) for key in EXCLUSION_ZONE_KEYS},
-    cv.Optional(CONF_GATE_RADIUS_CM): cv.use_id(number.Number),
-    cv.Optional(CONF_STATIONARY_SPEED_THRESH): cv.use_id(number.Number),
-    cv.Optional(CONF_STATIONARY_TIME_S): cv.use_id(number.Number),
-    cv.Optional(CONF_DROPOUT_HOLD_M): cv.use_id(number.Number),
-    cv.Optional(CONF_DROPOUT_HOLD_S): cv.use_id(number.Number),
-    cv.Optional(CONF_HOLDING_ENABLED): cv.use_id(_switch.Switch),
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(LD2450),
+        cv.Required(CONF_UART_ID): cv.use_id(uart.UARTComponent),
 
-}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+        **{cv.Required(key): sensor.sensor_schema() for key in SENSOR_KEYS},
+
+        cv.Required(CONF_DETECTION_RANGE): cv.use_id(number.Number),
+        cv.Required(CONF_FLIP_Y): cv.use_id(_switch.Switch),
+
+        cv.Optional(CONF_BLUETOOTH_STATE): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_TARGET1_STATE): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_TARGET2_STATE): text_sensor.text_sensor_schema(),
+        cv.Optional(CONF_TARGET3_STATE): text_sensor.text_sensor_schema(),
+
+        cv.Optional(CONF_EXCLUSION_ZONE_POINTS_COUNT): cv.use_id(number.Number),
+        **{cv.Optional(key): cv.use_id(number.Number) for key in EXCLUSION_ZONE_KEYS},
+
+        cv.Optional(CONF_GATE_RADIUS_CM): cv.use_id(number.Number),
+        cv.Optional(CONF_STATIONARY_SPEED_THRESH): cv.use_id(number.Number),
+        cv.Optional(CONF_STATIONARY_TIME_S): cv.use_id(number.Number),
+        cv.Optional(CONF_DROPOUT_HOLD_M): cv.use_id(number.Number),
+        cv.Optional(CONF_DROPOUT_HOLD_S): cv.use_id(number.Number),
+        cv.Optional(CONF_HOLDING_ENABLED): cv.use_id(_switch.Switch),
+    }
+).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -65,9 +73,6 @@ async def to_code(config):
 
     fy = await cg.get_variable(config[CONF_FLIP_Y])
     cg.add(var.set_flip_y(fy))
-
-    tracking = await text_sensor.new_text_sensor(config[CONF_TRACKING_MODE])
-    cg.add(var.set_tracking_mode_sensor(tracking))
 
     if CONF_BLUETOOTH_STATE in config:
         bt_state = await text_sensor.new_text_sensor(config[CONF_BLUETOOTH_STATE])
@@ -110,8 +115,6 @@ async def to_code(config):
     if CONF_DROPOUT_HOLD_M in config:
         hold_m = await cg.get_variable(config[CONF_DROPOUT_HOLD_M])
         cg.add(var.set_dropout_hold_m(hold_m))
-
-
     elif CONF_DROPOUT_HOLD_S in config:
         hold_s_legacy = await cg.get_variable(config[CONF_DROPOUT_HOLD_S])
         cg.add(var.set_dropout_hold_m(hold_s_legacy))
