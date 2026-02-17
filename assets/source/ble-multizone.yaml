@@ -1,0 +1,2133 @@
+esphome:
+  name: "s1-pro-multi-sense"
+  friendly_name: "S1 Pro Multi Sense"
+  name_add_mac_suffix: true
+  project:
+    name: "Sensy-One.S1 Pro Multi Sense"
+    version: "v1.1.13"
+
+  on_boot:
+    - priority: 800
+      then:
+        - if:
+            condition:
+              lambda: "return id(enable_holding);"
+            then:
+              - switch.template.publish:
+                  id: holding_switch_internal
+                  state: true
+              - switch.template.publish:
+                  id: holding_switch
+                  state: true
+            else:
+              - switch.template.publish:
+                  id: holding_switch_internal
+                  state: false
+              - switch.template.publish:
+                  id: holding_switch
+                  state: false
+
+        - if:
+            condition:
+              lambda: "return id(flip_y_state);"
+            then:
+              - switch.template.publish:
+                  id: flip_y
+                  state: true
+              - switch.template.publish:
+                  id: flip_y_switch
+                  state: true
+            else:
+              - switch.template.publish:
+                  id: flip_y
+                  state: false
+              - switch.template.publish:
+                  id: flip_y_switch
+                  state: false
+
+        - if:
+            condition:
+              lambda: "return id(enable_ble_proxy);"
+            then:
+              - switch.template.publish:
+                  id: ble_proxy_switch
+                  state: true
+            else:
+              - switch.template.publish:
+                  id: ble_proxy_switch
+                  state: false
+
+        - if:
+            condition:
+              lambda: "return id(radar_single_mode);"
+            then:
+              - switch.template.publish:
+                  id: radar_tracking_mode_switch
+                  state: true
+              - lambda: |-
+                  id(s1_sensor)->set_single_target_tracking();
+            else:
+              - switch.template.publish:
+                  id: radar_tracking_mode_switch
+                  state: false
+              - lambda: |-
+                  id(s1_sensor)->set_multi_target_tracking();
+
+        - lambda: |-
+            if (!isnan(id(bme688_temp_offset).state)) {
+              id(bsec_virtual_sensor)->set_temperature_offset((float) id(bme688_temp_offset).state);
+            }
+
+external_components:
+  - source:
+      type: local
+      path: components
+
+esp32:
+  board: esp32-c3-devkitm-1
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE: n
+
+wifi:
+  power_save_mode: none
+
+  ap:
+    ssid: "I am Sensy!"
+    ap_timeout: 1min
+
+  on_disconnect:
+    then:
+      - button.press: restart_btn
+
+captive_portal:
+
+esp32_ble_tracker:
+  scan_parameters:
+    active: false
+    continuous: false
+
+bluetooth_proxy:
+  active: false
+
+logger:
+  level: NONE
+  baud_rate: 0
+
+api:
+  reboot_timeout: 0s
+  on_client_connected:
+    then:
+      - if:
+          condition:
+            lambda: "return !!id(enable_ble_proxy);"
+          then:
+            - delay: 250ms
+            - esp32_ble_tracker.start_scan:
+                continuous: true
+
+  on_client_disconnected:
+    then:
+      - if:
+          condition:
+            lambda: "return !!id(enable_ble_proxy);"
+          then:
+            - esp32_ble_tracker.stop_scan:
+            - delay: 100ms
+            - button.press: restart_btn
+
+uart:
+  id: uart_bus
+  tx_pin: GPIO21
+  rx_pin: GPIO20
+  baud_rate: 256000
+  rx_buffer_size: 4096
+
+i2c:
+  id: i2c_bus
+  sda: GPIO5
+  scl: GPIO6
+  scan: false
+
+output:
+  - platform: ledc
+    id: mlt8530_buzzer
+    pin: GPIO7
+    frequency: 2700 Hz
+    inverted: false
+
+bme68x_bsec2_i2c:
+  i2c_id: i2c_bus
+  id: bsec_virtual_sensor
+  address: 0x76
+  model: bme688
+  sample_rate: LP
+  supply_voltage: 3.3V
+  state_save_interval: 6h
+  operating_age: 4d
+
+globals:
+  - id: flip_y_state
+    type: bool
+    restore_value: true
+    initial_value: "false"
+
+  - id: enable_holding
+    type: bool
+    restore_value: true
+    initial_value: "true"
+
+  - id: enable_ble_proxy
+    type: bool
+    restore_value: true
+    initial_value: "false"
+
+  - id: radar_single_mode
+    type: bool
+    restore_value: true
+    initial_value: "false"
+
+light:
+  - platform: esp32_rmt_led_strip
+    name: "WS2812 | LED"
+    chipset: WS2812
+    pin: GPIO3
+    num_leds: 1
+    rgb_order: GRB
+    restore_mode: RESTORE_DEFAULT_OFF
+
+button:
+  - platform: factory_reset
+    name: "ESP32 | Factory Reset"
+    id: factory_reset_btn
+    entity_category: config
+    icon: mdi:factory
+
+  - platform: restart
+    name: "ESP32 | Restart Module"
+    id: restart_btn
+    entity_category: config
+    icon: mdi:restart
+
+  - platform: template
+    name: "RADAR | Restart Module"
+    id: radar_restart_btn
+    icon: mdi:restart
+    entity_category: config
+    on_press:
+      then:
+        - lambda: |-
+            id(s1_sensor)->restart_module();
+
+  - platform: template
+    name: "RADAR | Factory Reset"
+    id: radar_factory_reset_btn
+    icon: mdi:factory
+    entity_category: config
+    on_press:
+      then:
+        - lambda: |-
+            id(s1_sensor)->restore_factory_settings();
+        - delay: 250ms
+        - lambda: |-
+            id(s1_sensor)->restart_module();
+
+  - platform: template
+    name: "SCD40 | Forced Calibration"
+    id: scd40_forced_calibration_btn
+    icon: "mdi:tune"
+    entity_category: config
+    on_press:
+      - scd4x.perform_forced_calibration:
+          id: scd40_sensor
+          value: 426
+
+  - platform: template
+    name: "SCD40 | Factory Reset"
+    id: scd40_factory_reset_btn
+    icon: "mdi:factory"
+    entity_category: config
+    on_press:
+      - scd4x.factory_reset: scd40_sensor
+      - delay: 250ms
+      - button.press: restart_btn
+
+switch:
+  - platform: template
+    id: flip_y
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    id: holding_switch_internal
+    internal: true
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+
+  - platform: template
+    id: holding_switch
+    name: "RADAR | Holding Engine"
+    icon: mdi:account-clock
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: |
+          id(enable_holding) = true;
+      - switch.template.publish:
+          id: holding_switch_internal
+          state: true
+    turn_off_action:
+      - lambda: |
+          id(enable_holding) = false;
+      - switch.template.publish:
+          id: holding_switch_internal
+          state: false
+
+  - platform: template
+    id: flip_y_switch
+    name: "RADAR | Flip Y Axis"
+    icon: mdi:axis-y-rotate-clockwise
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: |-
+          id(flip_y_state) = true;
+      - switch.template.publish:
+          id: flip_y
+          state: true
+    turn_off_action:
+      - lambda: |-
+          id(flip_y_state) = false;
+      - switch.template.publish:
+          id: flip_y
+          state: false
+
+  - platform: template
+    id: radar_tracking_mode_switch
+    name: "RADAR | Single Target"
+    icon: mdi:account
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: |-
+          id(radar_single_mode) = true;   // ON = single
+          id(s1_sensor)->set_single_target_tracking();
+    turn_off_action:
+      - lambda: |-
+          id(radar_single_mode) = false;  // OFF = multi
+          id(s1_sensor)->set_multi_target_tracking();
+
+  - platform: template
+    id: ble_proxy_switch
+    name: "ESP32 | BLE Tracker"
+    icon: mdi:bluetooth-audio
+    entity_category: config
+    optimistic: true
+    restore_mode: RESTORE_DEFAULT_OFF
+    turn_on_action:
+      - lambda: |
+          id(enable_ble_proxy) = true;
+      - delay: 100ms
+      - esp32_ble_tracker.start_scan:
+          continuous: true
+    turn_off_action:
+      - esp32_ble_tracker.stop_scan:
+      - delay: 100ms
+      - lambda: |
+          id(enable_ble_proxy) = false;
+
+sensor:
+  - platform: s1_pro
+    id: s1_sensor
+    target1_x:
+      name: "RADAR | Target 1 X"
+      id: target1_x
+      icon: mdi:alpha-x-box-outline
+      unit_of_measurement: "cm"
+    target1_y:
+      name: "RADAR | Target 1 Y"
+      id: target1_y
+      icon: mdi:alpha-y-box-outline
+      unit_of_measurement: "cm"
+    target1_angle:
+      name: "RADAR | Target 1 Angle"
+      id: target1_angle
+      icon: mdi:format-text-rotation-angle-up
+      unit_of_measurement: "°"
+    target1_speed:
+      name: "RADAR | Target 1 Speed"
+      id: target1_speed
+      icon: mdi:speedometer
+      unit_of_measurement: "cm/s"
+    target1_distance:
+      name: "RADAR | Target 1 Distance"
+      id: target1_distance
+      icon: mdi:map-marker-distance
+      unit_of_measurement: "cm"
+    target2_x:
+      name: "RADAR | Target 2 X"
+      id: target2_x
+      icon: mdi:alpha-x-box-outline
+      unit_of_measurement: "cm"
+    target2_y:
+      name: "RADAR | Target 2 Y"
+      id: target2_y
+      icon: mdi:alpha-y-box-outline
+      unit_of_measurement: "cm"
+    target2_angle:
+      name: "RADAR | Target 2 Angle"
+      id: target2_angle
+      icon: mdi:format-text-rotation-angle-up
+      unit_of_measurement: "°"
+    target2_speed:
+      name: "RADAR | Target 2 Speed"
+      id: target2_speed
+      icon: mdi:speedometer
+      unit_of_measurement: "cm/s"
+    target2_distance:
+      name: "RADAR | Target 2 Distance"
+      id: target2_distance
+      icon: mdi:map-marker-distance
+      unit_of_measurement: "cm"
+    target3_x:
+      name: "RADAR | Target 3 X"
+      id: target3_x
+      icon: mdi:alpha-x-box-outline
+      unit_of_measurement: "cm"
+    target3_y:
+      name: "RADAR | Target 3 Y"
+      id: target3_y
+      icon: mdi:alpha-y-box-outline
+      unit_of_measurement: "cm"
+    target3_angle:
+      name: "RADAR | Target 3 Angle"
+      id: target3_angle
+      icon: mdi:format-text-rotation-angle-up
+      unit_of_measurement: "°"
+    target3_speed:
+      name: "RADAR | Target 3 Speed"
+      id: target3_speed
+      icon: mdi:speedometer
+      unit_of_measurement: "cm/s"
+    target3_distance:
+      name: "RADAR | Target 3 Distance"
+      id: target3_distance
+      icon: mdi:map-marker-distance
+      unit_of_measurement: "cm"
+
+    detection_range: detection_range
+    flip_y: flip_y
+    exclusion_zone_points_count: exclusion_zone_points_count
+
+    exclusion_zone_p1_x: exclusion_zone_p1_x
+    exclusion_zone_p1_y: exclusion_zone_p1_y
+    exclusion_zone_p2_x: exclusion_zone_p2_x
+    exclusion_zone_p2_y: exclusion_zone_p2_y
+    exclusion_zone_p3_x: exclusion_zone_p3_x
+    exclusion_zone_p3_y: exclusion_zone_p3_y
+    exclusion_zone_p4_x: exclusion_zone_p4_x
+    exclusion_zone_p4_y: exclusion_zone_p4_y
+    exclusion_zone_p5_x: exclusion_zone_p5_x
+    exclusion_zone_p5_y: exclusion_zone_p5_y
+    exclusion_zone_p6_x: exclusion_zone_p6_x
+    exclusion_zone_p6_y: exclusion_zone_p6_y
+    exclusion_zone_p7_x: exclusion_zone_p7_x
+    exclusion_zone_p7_y: exclusion_zone_p7_y
+    exclusion_zone_p8_x: exclusion_zone_p8_x
+    exclusion_zone_p8_y: exclusion_zone_p8_y
+
+    gate_radius_cm: gate_radius_cm
+    stationary_speed_thresh: stationary_speed_thresh
+    stationary_time_s: stationary_time_s
+    dropout_hold_m: dropout_hold_m
+    holding_enabled: holding_switch_internal
+
+    target1_state:
+      name: "RADAR | Target 1 State"
+      id: radar_target1_state
+      icon: mdi:account-check
+
+    target2_state:
+      name: "RADAR | Target 2 State"
+      id: radar_target2_state
+      icon: mdi:account-check
+
+    target3_state:
+      name: "RADAR | Target 3 State"
+      id: radar_target3_state
+      icon: mdi:account-check
+
+  - platform: template
+    name: "RADAR | All Targets Count"
+    icon: mdi:counter
+    id: all_targets_count
+    unit_of_measurement: ""
+    update_interval: 1s
+    accuracy_decimals: 0
+    lambda: |-
+      int count = 0;
+      if (id(target1_distance).state > 0) count++;
+      if (id(target2_distance).state > 0) count++;
+      if (id(target3_distance).state > 0) count++;
+      return count;
+
+  - platform: template
+    name: "RADAR | Zone 1 Target Count"
+    icon: mdi:counter
+    id: zone1_target_count
+    unit_of_measurement: ""
+    update_interval: 1s
+    accuracy_decimals: 0
+    lambda: |-
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone1_points_count).state;
+      if (n < 3) return 0;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone1_p1_x).state); ys[0]=nz(id(zone1_p1_y).state);
+      xs[1]=nz(id(zone1_p2_x).state); ys[1]=nz(id(zone1_p2_y).state);
+      xs[2]=nz(id(zone1_p3_x).state); ys[2]=nz(id(zone1_p3_y).state);
+      xs[3]=nz(id(zone1_p4_x).state); ys[3]=nz(id(zone1_p4_y).state);
+      xs[4]=nz(id(zone1_p5_x).state); ys[4]=nz(id(zone1_p5_y).state);
+      xs[5]=nz(id(zone1_p6_x).state); ys[5]=nz(id(zone1_p6_y).state);
+      xs[6]=nz(id(zone1_p7_x).state); ys[6]=nz(id(zone1_p7_y).state);
+      xs[7]=nz(id(zone1_p8_x).state); ys[7]=nz(id(zone1_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      // Ray-casting point-in-polygon
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      int count = 0;
+      if (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state)) count++;
+      if (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state)) count++;
+      if (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state)) count++;
+      return count;
+
+  - platform: template
+    name: "RADAR | Zone 2 Target Count"
+    icon: mdi:counter
+    id: zone2_target_count
+    unit_of_measurement: ""
+    update_interval: 1s
+    accuracy_decimals: 0
+    lambda: |-
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone2_points_count).state;
+      if (n < 3) return 0;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone2_p1_x).state); ys[0]=nz(id(zone2_p1_y).state);
+      xs[1]=nz(id(zone2_p2_x).state); ys[1]=nz(id(zone2_p2_y).state);
+      xs[2]=nz(id(zone2_p3_x).state); ys[2]=nz(id(zone2_p3_y).state);
+      xs[3]=nz(id(zone2_p4_x).state); ys[3]=nz(id(zone2_p4_y).state);
+      xs[4]=nz(id(zone2_p5_x).state); ys[4]=nz(id(zone2_p5_y).state);
+      xs[5]=nz(id(zone2_p6_x).state); ys[5]=nz(id(zone2_p6_y).state);
+      xs[6]=nz(id(zone2_p7_x).state); ys[6]=nz(id(zone2_p7_y).state);
+      xs[7]=nz(id(zone2_p8_x).state); ys[7]=nz(id(zone2_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      // Ray-casting point-in-polygon
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      int count = 0;
+      if (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state)) count++;
+      if (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state)) count++;
+      if (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state)) count++;
+      return count;
+
+  - platform: template
+    name: "RADAR | Zone 3 Target Count"
+    icon: mdi:counter
+    id: zone3_target_count
+    unit_of_measurement: ""
+    update_interval: 1s
+    accuracy_decimals: 0
+    lambda: |-
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone3_points_count).state;
+      if (n < 3) return 0;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone3_p1_x).state); ys[0]=nz(id(zone3_p1_y).state);
+      xs[1]=nz(id(zone3_p2_x).state); ys[1]=nz(id(zone3_p2_y).state);
+      xs[2]=nz(id(zone3_p3_x).state); ys[2]=nz(id(zone3_p3_y).state);
+      xs[3]=nz(id(zone3_p4_x).state); ys[3]=nz(id(zone3_p4_y).state);
+      xs[4]=nz(id(zone3_p5_x).state); ys[4]=nz(id(zone3_p5_y).state);
+      xs[5]=nz(id(zone3_p6_x).state); ys[5]=nz(id(zone3_p6_y).state);
+      xs[6]=nz(id(zone3_p7_x).state); ys[6]=nz(id(zone3_p7_y).state);
+      xs[7]=nz(id(zone3_p8_x).state); ys[7]=nz(id(zone3_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      // Ray-casting point-in-polygon
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      int count = 0;
+      if (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state)) count++;
+      if (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state)) count++;
+      if (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state)) count++;
+      return count;
+
+  - platform: internal_temperature
+    name: "ESP32 | Temperature"
+    entity_category: diagnostic
+    icon: mdi:thermometer
+
+  - platform: scd4x
+    id: scd40_sensor
+    measurement_mode: periodic
+    automatic_self_calibration: false
+    ambient_pressure_compensation_source: bme_pressure
+    update_interval: 5s
+    co2:
+      name: "SCD40 | CO₂ Concentration"
+      id: scd_co2
+      unit_of_measurement: "ppm"
+      icon: mdi:molecule-co2
+      filters:
+        - exponential_moving_average:
+            alpha: 0.03
+            send_every: 2
+        - or:
+            - throttle_average: 300s
+            - delta: 20
+        - debounce: 1s
+
+  - platform: bme68x_bsec2
+    temperature:
+      name: "BME688 | Temperature"
+      id: bme_temp
+      filters:
+        - exponential_moving_average:
+            alpha: 0.03
+            send_every: 2
+        - or:
+            - throttle_average: 300s
+            - delta: 0.1
+        - debounce: 1s
+    pressure:
+      name: "BME688 | Pressure"
+      id: bme_pressure
+      filters:
+        - exponential_moving_average:
+            alpha: 0.03
+            send_every: 2
+        - or:
+            - throttle_average: 600s
+            - delta: 10
+        - debounce: 1s
+    humidity:
+      name: "BME688 | Humidity"
+      id: bme_rh
+      filters:
+        - exponential_moving_average:
+            alpha: 0.03
+            send_every: 2
+        - or:
+            - throttle_average: 300s
+            - delta: 0.5
+        - debounce: 1s
+    gas_resistance:
+      name: "BME688 | Gas Resistance"
+      id: bme_gas_resistance_kohm
+      unit_of_measurement: "kΩ"
+      accuracy_decimals: 1
+      icon: mdi:omega
+      filters:
+        - multiply: 0.001
+        - median:
+            window_size: 5
+            send_every: 3
+        - or:
+            - throttle: 600s
+            - delta: 0.5
+    iaq:
+      name: "BME688 | IAQ"
+      id: bme_iaq
+      filters:
+        - exponential_moving_average:
+            alpha: 0.03
+            send_every: 2
+        - or:
+            - throttle_average: 300s
+            - delta: 5
+        - debounce: 1s
+    breath_voc_equivalent:
+      name: "BME688 | VOC Equivalent"
+      id: bme_voc_eq
+      on_raw_value:
+        then:
+          - lambda: |-
+              if (x >= 500.0f) {
+                id(s1_sensor)->restart_module();
+              }
+
+  - platform: ltr390
+    i2c_id: i2c_bus
+    update_interval: 5s
+
+    light:
+      name: "LTR390 | Ambient Light"
+      id: ltr390_lux_raw
+      icon: mdi:brightness-5
+      filters:
+        - lambda: |-
+            if (isnan(x) || isnan(id(ltr390_lux_offset).state)) {
+              return x;
+            }
+            return x + id(ltr390_lux_offset).state;
+        - exponential_moving_average:
+            alpha: 0.03
+            send_every: 2
+        - or:
+            - throttle_average: 300s
+            - delta: 0.1
+        - debounce: 1s
+
+    uv_index:
+      name: "LTR390 | UV Index"
+      id: ltr390_uv_raw
+      icon: mdi:weather-sunset
+      filters:
+        - lambda: |-
+            if (isnan(x) || isnan(id(ltr390_uv_offset).state)) {
+              return x;
+            }
+            return x + id(ltr390_uv_offset).state;
+        - exponential_moving_average:
+            alpha: 0.03
+            send_every: 2
+        - or:
+            - throttle_average: 300s
+            - delta: 0.01
+        - debounce: 1s
+
+    gain:
+      ambient_light: X1
+      uv: X1
+    resolution:
+      ambient_light: 20
+      uv: 20
+    window_correction_factor: 2.3
+
+  - platform: wifi_signal
+    name: "ESP32 | RSSI"
+    internal: true
+    id: wifi_rssi_raw
+    update_interval: 5s
+
+number:
+  - platform: template
+    name: "RADAR | Detection Range"
+    icon: mdi:signal-distance-variant
+    id: detection_range
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 600
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_points_count
+    name: "Exclusion Zone Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p1_x
+    name: "Exclusion Zone P1 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p1_y
+    name: "Exclusion Zone P1 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p2_x
+    name: "Exclusion Zone P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p2_y
+    name: "Exclusion Zone P2 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p3_x
+    name: "Exclusion Zone P3 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p3_y
+    name: "Exclusion Zone P3 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p4_x
+    name: "Exclusion Zone P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p4_y
+    name: "Exclusion Zone P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p5_x
+    name: "Exclusion Zone P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p5_y
+    name: "Exclusion Zone P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p6_x
+    name: "Exclusion Zone P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p6_y
+    name: "Exclusion Zone P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p7_x
+    name: "Exclusion Zone P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p7_y
+    name: "Exclusion Zone P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: exclusion_zone_p8_x
+    name: "Exclusion Zone P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: exclusion_zone_p8_y
+    name: "Exclusion Zone P8 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_points_count
+    name: "RADAR | Zone 1 Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p1_x
+    name: "RADAR | Zone 1 P1 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p1_y
+    name: "RADAR | Zone 1 P1 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p2_x
+    name: "RADAR | Zone 1 P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p2_y
+    name: "RADAR | Zone 1 P2 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p3_x
+    name: "RADAR | Zone 1 P3 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p3_y
+    name: "RADAR | Zone 1 P3 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p4_x
+    name: "RADAR | Zone 1 P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p4_y
+    name: "RADAR | Zone 1 P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p5_x
+    name: "RADAR | Zone 1 P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p5_y
+    name: "RADAR | Zone 1 P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p6_x
+    name: "RADAR | Zone 1 P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p6_y
+    name: "RADAR | Zone 1 P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p7_x
+    name: "RADAR | Zone 1 P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p7_y
+    name: "RADAR | Zone 1 P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_p8_x
+    name: "RADAR | Zone 1 P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone1_p8_y
+    name: "RADAR | Zone 1 P8 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_movement_threshold
+    name: "RADAR | Zone 1 Movement Threshold"
+    icon: mdi:motion-sensor
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 5000
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone1_presence_delay
+    name: "RADAR | Zone 1 Presence Delay"
+    icon: mdi:timer-outline
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_points_count
+    name: "RADAR | Zone 2 Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p1_x
+    name: "RADAR | Zone 2 P1 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p1_y
+    name: "RADAR | Zone 2 P1 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p2_x
+    name: "RADAR | Zone 2 P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p2_y
+    name: "RADAR | Zone 2 P2 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p3_x
+    name: "RADAR | Zone 2 P3 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p3_y
+    name: "RADAR | Zone 2 P3 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p4_x
+    name: "RADAR | Zone 2 P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p4_y
+    name: "RADAR | Zone 2 P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p5_x
+    name: "RADAR | Zone 2 P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p5_y
+    name: "RADAR | Zone 2 P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p6_x
+    name: "RADAR | Zone 2 P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p6_y
+    name: "RADAR | Zone 2 P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p7_x
+    name: "RADAR | Zone 2 P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p7_y
+    name: "RADAR | Zone 2 P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_p8_x
+    name: "RADAR | Zone 2 P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone2_p8_y
+    name: "RADAR | Zone 2 P8 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_movement_threshold
+    name: "RADAR | Zone 2 Movement Threshold"
+    icon: mdi:motion-sensor
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 5000
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone2_presence_delay
+    name: "RADAR | Zone 2 Presence Delay"
+    icon: mdi:timer-outline
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_points_count
+    name: "RADAR | Zone 3 Points Count"
+    icon: mdi:counter
+    unit_of_measurement: "pts"
+    min_value: 0
+    max_value: 8
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p1_x
+    name: "RADAR | Zone 3 P1 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p1_y
+    name: "RADAR | Zone 3 P1 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p2_x
+    name: "RADAR | Zone 3 P2 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p2_y
+    name: "RADAR | Zone 3 P2 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p3_x
+    name: "RADAR | Zone 3 P3 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p3_y
+    name: "RADAR | Zone 3 P3 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p4_x
+    name: "RADAR | Zone 3 P4 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p4_y
+    name: "RADAR | Zone 3 P4 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p5_x
+    name: "RADAR | Zone 3 P5 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p5_y
+    name: "RADAR | Zone 3 P5 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p6_x
+    name: "RADAR | Zone 3 P6 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p6_y
+    name: "RADAR | Zone 3 P6 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p7_x
+    name: "RADAR | Zone 3 P7 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p7_y
+    name: "RADAR | Zone 3 P7 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_p8_x
+    name: "RADAR | Zone 3 P8 X"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: -600
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+  - platform: template
+    id: zone3_p8_y
+    name: "RADAR | Zone 3 P8 Y"
+    icon: mdi:map-marker
+    unit_of_measurement: "cm"
+    min_value: 0
+    max_value: 600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_movement_threshold
+    name: "RADAR | Zone 3 Movement Threshold"
+    icon: mdi:motion-sensor
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 5000
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: zone3_presence_delay
+    name: "RADAR | Zone 3 Presence Delay"
+    icon: mdi:timer-outline
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 3600
+    step: 1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: ltr390_lux_offset
+    name: "LTR390 | Lux Offset"
+    icon: mdi:brightness-5
+    unit_of_measurement: "lux"
+    min_value: -10000
+    max_value: 10000
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: ltr390_uv_offset
+    name: "LTR390 | UV Offset"
+    icon: mdi:weather-sunset
+    unit_of_measurement: "index"
+    min_value: -50
+    max_value: 50
+    step: 0.1
+    initial_value: 0
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: bme688_temp_offset
+    name: "BME688 | Temp Offset"
+    icon: mdi:thermometer-plus
+    unit_of_measurement: "°C"
+    min_value: -50
+    max_value: 50
+    step: 0.01
+    initial_value: 12.43
+    optimistic: true
+    restore_value: true
+    mode: box
+    on_value:
+      - lambda: |-
+          if (!isnan(x)) {
+            id(bsec_virtual_sensor)->set_temperature_offset((float) x);
+          }
+
+  - platform: template
+    id: gate_radius_cm
+    name: "RADAR | Gate Radius"
+    icon: mdi:crosshairs-gps
+    unit_of_measurement: "cm"
+    min_value: 5
+    max_value: 300
+    step: 1
+    initial_value: 100
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: stationary_speed_thresh
+    name: "RADAR | Stationary Speed Threshold"
+    icon: mdi:speedometer-slow
+    unit_of_measurement: "cm/s"
+    min_value: 0
+    max_value: 100
+    step: 1
+    initial_value: 45
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: stationary_time_s
+    name: "RADAR | Stationary Time"
+    icon: mdi:timer-sand
+    unit_of_measurement: "s"
+    min_value: 0
+    max_value: 120
+    step: 1
+    initial_value: 55
+    optimistic: true
+    restore_value: true
+    mode: box
+
+  - platform: template
+    id: dropout_hold_m
+    name: "RADAR | Dropout Hold Time"
+    icon: mdi:timer-lock-outline
+    unit_of_measurement: "min"
+    min_value: 0
+    max_value: 60
+    step: 1
+    initial_value: 15
+    optimistic: true
+    restore_value: true
+    mode: box
+
+binary_sensor:
+  - platform: status
+    name: "ESP32 | Status"
+    entity_category: diagnostic
+
+  - platform: template
+    name: "BME688 | Air Cold"
+    icon: mdi:snowflake-alert
+    device_class: cold
+    lambda: |-
+      return id(bme_temp).state < 15.0;
+
+  - platform: template
+    name: "BME688 | Air Hot"
+    icon: mdi:thermometer-alert
+    device_class: heat
+    lambda: |-
+      return id(bme_temp).state > 30.0;
+
+  - platform: template
+    name: "BME688 | Air Moisture"
+    icon: mdi:water-alert
+    device_class: safety
+    lambda: |-
+      return id(bme_rh).state > 70.0;
+
+  - platform: template
+    name: "BME688 | Air Dry"
+    icon: mdi:water-off-outline
+    device_class: safety
+    lambda: |-
+      return id(bme_rh).state < 25.0;
+
+  - platform: template
+    name: "BME688 | High IAQ"
+    icon: mdi:wind-turbine-alert
+    device_class: safety
+    lambda: |-
+      return id(bme_iaq).state >= 200.0;
+
+  - platform: template
+    name: "BME688 | High VOC"
+    icon: mdi:gas-burner
+    device_class: safety
+    lambda: |-
+      return id(bme_voc_eq).state >= 10.0;
+
+  - platform: template
+    name: "BME688 | Gas"
+    icon: mdi:gas-cylinder
+    device_class: gas
+    lambda: |-
+      return id(bme_iaq).state >= 300.0 || id(bme_voc_eq).state >= 15.0;
+
+  - platform: template
+    name: "BME688 | Smoke"
+    icon: mdi:smoke-detector-alert
+    device_class: smoke
+    lambda: |-
+      return id(bme_iaq).state >= 350.0 || id(bme_voc_eq).state >= 20.0;
+
+  - platform: template
+    name: "SCD40 | Oxygen"
+    icon: mdi:sprout
+    device_class: safety
+    lambda: |-
+      return id(scd_co2).state >= 1500.0;
+
+  - platform: template
+    name: "RADAR | Zone 1 Presence"
+    icon: mdi:home-account
+    device_class: presence
+    lambda: |-
+      static unsigned long last_off_1 = 0;
+      unsigned long now = millis();
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone1_points_count).state;
+      if (n < 3) return (now - last_off_1) < (unsigned long)(id(zone1_presence_delay).state * 1000.0);
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone1_p1_x).state); ys[0]=nz(id(zone1_p1_y).state);
+      xs[1]=nz(id(zone1_p2_x).state); ys[1]=nz(id(zone1_p2_y).state);
+      xs[2]=nz(id(zone1_p3_x).state); ys[2]=nz(id(zone1_p3_y).state);
+      xs[3]=nz(id(zone1_p4_x).state); ys[3]=nz(id(zone1_p4_y).state);
+      xs[4]=nz(id(zone1_p5_x).state); ys[4]=nz(id(zone1_p5_y).state);
+      xs[5]=nz(id(zone1_p6_x).state); ys[5]=nz(id(zone1_p6_y).state);
+      xs[6]=nz(id(zone1_p7_x).state); ys[6]=nz(id(zone1_p7_y).state);
+      xs[7]=nz(id(zone1_p8_x).state); ys[7]=nz(id(zone1_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool pres =
+          (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state));
+
+      if (pres) { last_off_1 = now; return true; }
+      return (now - last_off_1) < (unsigned long)(id(zone1_presence_delay).state * 1000.0);
+
+  - platform: template
+    name: "RADAR | Zone 1 Movement"
+    icon: mdi:motion-sensor
+    device_class: motion
+    lambda: |-
+      float thresh = id(zone1_movement_threshold).state;
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone1_points_count).state;
+      if (n < 3) return false;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone1_p1_x).state); ys[0]=nz(id(zone1_p1_y).state);
+      xs[1]=nz(id(zone1_p2_x).state); ys[1]=nz(id(zone1_p2_y).state);
+      xs[2]=nz(id(zone1_p3_x).state); ys[2]=nz(id(zone1_p3_y).state);
+      xs[3]=nz(id(zone1_p4_x).state); ys[3]=nz(id(zone1_p4_y).state);
+      xs[4]=nz(id(zone1_p5_x).state); ys[4]=nz(id(zone1_p5_y).state);
+      xs[5]=nz(id(zone1_p6_x).state); ys[5]=nz(id(zone1_p6_y).state);
+      xs[6]=nz(id(zone1_p7_x).state); ys[6]=nz(id(zone1_p7_y).state);
+      xs[7]=nz(id(zone1_p8_x).state); ys[7]=nz(id(zone1_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool mov =
+          (id(target1_distance).state > 0 && std::abs(id(target1_speed).state) > thresh && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && std::abs(id(target2_speed).state) > thresh && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && std::abs(id(target3_speed).state) > thresh && in_poly(id(target3_x).state, id(target3_y).state));
+      return mov;
+
+  - platform: template
+    name: "RADAR | Zone 2 Presence"
+    icon: mdi:home-account
+    device_class: presence
+    lambda: |-
+      static unsigned long last_off_2 = 0;
+      unsigned long now = millis();
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone2_points_count).state;
+      if (n < 3) return (now - last_off_2) < (unsigned long)(id(zone2_presence_delay).state * 1000.0);
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone2_p1_x).state); ys[0]=nz(id(zone2_p1_y).state);
+      xs[1]=nz(id(zone2_p2_x).state); ys[1]=nz(id(zone2_p2_y).state);
+      xs[2]=nz(id(zone2_p3_x).state); ys[2]=nz(id(zone2_p3_y).state);
+      xs[3]=nz(id(zone2_p4_x).state); ys[3]=nz(id(zone2_p4_y).state);
+      xs[4]=nz(id(zone2_p5_x).state); ys[4]=nz(id(zone2_p5_y).state);
+      xs[5]=nz(id(zone2_p6_x).state); ys[5]=nz(id(zone2_p6_y).state);
+      xs[6]=nz(id(zone2_p7_x).state); ys[6]=nz(id(zone2_p7_y).state);
+      xs[7]=nz(id(zone2_p8_x).state); ys[7]=nz(id(zone2_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool pres =
+          (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state));
+
+      if (pres) { last_off_2 = now; return true; }
+      return (now - last_off_2) < (unsigned long)(id(zone2_presence_delay).state * 1000.0);
+
+  - platform: template
+    name: "RADAR | Zone 2 Movement"
+    icon: mdi:motion-sensor
+    device_class: motion
+    lambda: |-
+      float thresh = id(zone2_movement_threshold).state;
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone2_points_count).state;
+      if (n < 3) return false;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone2_p1_x).state); ys[0]=nz(id(zone2_p1_y).state);
+      xs[1]=nz(id(zone2_p2_x).state); ys[1]=nz(id(zone2_p2_y).state);
+      xs[2]=nz(id(zone2_p3_x).state); ys[2]=nz(id(zone2_p3_y).state);
+      xs[3]=nz(id(zone2_p4_x).state); ys[3]=nz(id(zone2_p4_y).state);
+      xs[4]=nz(id(zone2_p5_x).state); ys[4]=nz(id(zone2_p5_y).state);
+      xs[5]=nz(id(zone2_p6_x).state); ys[5]=nz(id(zone2_p6_y).state);
+      xs[6]=nz(id(zone2_p7_x).state); ys[6]=nz(id(zone2_p7_y).state);
+      xs[7]=nz(id(zone2_p8_x).state); ys[7]=nz(id(zone2_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool mov =
+          (id(target1_distance).state > 0 && std::abs(id(target1_speed).state) > thresh && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && std::abs(id(target2_speed).state) > thresh && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && std::abs(id(target3_speed).state) > thresh && in_poly(id(target3_x).state, id(target3_y).state));
+      return mov;
+
+  - platform: template
+    name: "RADAR | Zone 3 Presence"
+    icon: mdi:home-account
+    device_class: presence
+    lambda: |-
+      static unsigned long last_off_3 = 0;
+      unsigned long now = millis();
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone3_points_count).state;
+      if (n < 3) return (now - last_off_3) < (unsigned long)(id(zone3_presence_delay).state * 1000.0);
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone3_p1_x).state); ys[0]=nz(id(zone3_p1_y).state);
+      xs[1]=nz(id(zone3_p2_x).state); ys[1]=nz(id(zone3_p2_y).state);
+      xs[2]=nz(id(zone3_p3_x).state); ys[2]=nz(id(zone3_p3_y).state);
+      xs[3]=nz(id(zone3_p4_x).state); ys[3]=nz(id(zone3_p4_y).state);
+      xs[4]=nz(id(zone3_p5_x).state); ys[4]=nz(id(zone3_p5_y).state);
+      xs[5]=nz(id(zone3_p6_x).state); ys[5]=nz(id(zone3_p6_y).state);
+      xs[6]=nz(id(zone3_p7_x).state); ys[6]=nz(id(zone3_p7_y).state);
+      xs[7]=nz(id(zone3_p8_x).state); ys[7]=nz(id(zone3_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool pres =
+          (id(target1_distance).state > 0 && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && in_poly(id(target3_x).state, id(target3_y).state));
+
+      if (pres) { last_off_3 = now; return true; }
+      return (now - last_off_3) < (unsigned long)(id(zone3_presence_delay).state * 1000.0);
+
+  - platform: template
+    name: "RADAR | Zone 3 Movement"
+    icon: mdi:motion-sensor
+    device_class: motion
+    lambda: |-
+      float thresh = id(zone3_movement_threshold).state;
+
+      const int MAX_PTS = 8;
+      float xs[MAX_PTS], ys[MAX_PTS];
+      int n = (int) id(zone3_points_count).state;
+      if (n < 3) return false;
+
+      auto nz = [](float v){ return isnan(v) ? 0.0f : v; };
+      xs[0]=nz(id(zone3_p1_x).state); ys[0]=nz(id(zone3_p1_y).state);
+      xs[1]=nz(id(zone3_p2_x).state); ys[1]=nz(id(zone3_p2_y).state);
+      xs[2]=nz(id(zone3_p3_x).state); ys[2]=nz(id(zone3_p3_y).state);
+      xs[3]=nz(id(zone3_p4_x).state); ys[3]=nz(id(zone3_p4_y).state);
+      xs[4]=nz(id(zone3_p5_x).state); ys[4]=nz(id(zone3_p5_y).state);
+      xs[5]=nz(id(zone3_p6_x).state); ys[5]=nz(id(zone3_p6_y).state);
+      xs[6]=nz(id(zone3_p7_x).state); ys[6]=nz(id(zone3_p7_y).state);
+      xs[7]=nz(id(zone3_p8_x).state); ys[7]=nz(id(zone3_p8_y).state);
+      if (n > MAX_PTS) n = MAX_PTS;
+
+      auto in_poly = [&](float px, float py)->bool {
+        bool inside = false;
+        for (int i = 0, j = n - 1; i < n; j = i++) {
+          bool inter = ((ys[i] > py) != (ys[j] > py)) &&
+                      (px < (xs[j] - xs[i]) * (py - ys[i]) / ((ys[j]-ys[i]) == 0 ? 1e-6f : (ys[j]-ys[i])) + xs[i]);
+          if (inter) inside = !inside;
+        }
+        return inside;
+      };
+
+      bool mov =
+          (id(target1_distance).state > 0 && std::abs(id(target1_speed).state) > thresh && in_poly(id(target1_x).state, id(target1_y).state))
+        || (id(target2_distance).state > 0 && std::abs(id(target2_speed).state) > thresh && in_poly(id(target2_x).state, id(target2_y).state))
+        || (id(target3_distance).state > 0 && std::abs(id(target3_speed).state) > thresh && in_poly(id(target3_x).state, id(target3_y).state));
+      return mov;
+
+text_sensor:
+  - platform: bme68x_bsec2
+    iaq_accuracy:
+      name: "BME688 | IAQ Accuracy"
+
+  - platform: template
+    name: "BME688 | IAQ Classification"
+    icon: mdi:air-filter
+    lambda: |-
+      if ( int(id(bme_iaq).state) <= 50) {
+        return {"Excellent"};
+      }
+      else if (int(id(bme_iaq).state) >= 51 && int(id(bme_iaq).state) <= 100) {
+        return {"Good"};
+      }
+      else if (int(id(bme_iaq).state) >= 101 && int(id(bme_iaq).state) <= 150) {
+        return {"Lightly polluted"};
+      }
+      else if (int(id(bme_iaq).state) >= 151 && int(id(bme_iaq).state) <= 200) {
+        return {"Moderately polluted"};
+      }
+      else if (int(id(bme_iaq).state) >= 201 && int(id(bme_iaq).state) <= 250) {
+        return {"Heavily polluted"};
+      }
+      else if (int(id(bme_iaq).state) >= 251 && int(id(bme_iaq).state) <= 350) {
+        return {"Severely polluted"};
+      }
+      else if (int(id(bme_iaq).state) >= 351) {
+        return {"Extremely polluted"};
+      }
+      else {
+        return {"error"};
+      }
