@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.1.13"  
+    version: "v1.2.13"  
 
   on_boot:
   - priority: 600
@@ -111,10 +111,22 @@ script:
       - light.turn_off: ws2812_LED
       - lambda: 'id(onboarding_done) = true;'
 
+# external_components:
+#   - source:
+#       type: local
+#       path: components
+
 external_components:
   - source:
-      type: local
-      path: components
+      type: git
+      url: https://github.com/sensy-one/S1-Pro-Multi-Sense
+      ref: main
+      path: assets/source/components
+    components: [s1_pro]
+
+dashboard_import:
+  package_import_url: github://sensy-one/S1-Pro-Multi-Sense/assets/source/main.yaml@main
+  import_full_config: true
 
 esp32:
   board: esp32-c3-devkitm-1
@@ -122,6 +134,11 @@ esp32:
     type: esp-idf
     sdkconfig_options:
       CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE: n
+
+esp32_improv:
+  authorizer: none
+
+improv_serial:
 
 wifi:
   ap:
@@ -132,7 +149,7 @@ captive_portal:
 
 logger:
   level: NONE
-  baud_rate: 0
+  baud_rate: 115200
 
 api:
   reboot_timeout: 0s
@@ -148,6 +165,7 @@ api:
 
 ota:
   - platform: web_server
+    id: ota_web_server
 
 web_server:
   version: 3
@@ -656,6 +674,7 @@ sensor:
       return count;
 
   - platform: internal_temperature
+    id: esp32_internal_temperature
     name: "ESP32 | Temperature"
     entity_category: diagnostic
     icon: mdi:thermometer
@@ -893,6 +912,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p1_y
     name: "Exclusion Zone P1 Y"
@@ -918,6 +938,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p2_y
     name: "Exclusion Zone P2 Y"
@@ -943,6 +964,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p3_y
     name: "Exclusion Zone P3 Y"
@@ -968,6 +990,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p4_y
     name: "Exclusion Zone P4 Y"
@@ -993,6 +1016,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p5_y
     name: "Exclusion Zone P5 Y"
@@ -1018,6 +1042,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p6_y
     name: "Exclusion Zone P6 Y"
@@ -1043,6 +1068,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p7_y
     name: "Exclusion Zone P7 Y"
@@ -1068,6 +1094,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: exclusion_zone_p8_y
     name: "Exclusion Zone P8 Y"
@@ -1106,6 +1133,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p1_y
     name: "Zone 1 P1 Y"
@@ -1131,6 +1159,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p2_y
     name: "Zone 1 P2 Y"
@@ -1156,6 +1185,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p3_y
     name: "Zone 1 P3 Y"
@@ -1181,6 +1211,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p4_y
     name: "Zone 1 P4 Y"
@@ -1206,6 +1237,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p5_y
     name: "Zone 1 P5 Y"
@@ -1231,6 +1263,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p6_y
     name: "Zone 1 P6 Y"
@@ -1256,6 +1289,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p7_y
     name: "Zone 1 P7 Y"
@@ -1281,6 +1315,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone1_p8_y
     name: "Zone 1 P8 Y"
@@ -1345,6 +1380,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p1_y
     name: "Zone 2 P1 Y"
@@ -1370,6 +1406,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p2_y
     name: "Zone 2 P2 Y"
@@ -1395,6 +1432,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p3_y
     name: "Zone 2 P3 Y"
@@ -1420,6 +1458,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p4_y
     name: "Zone 2 P4 Y"
@@ -1445,6 +1484,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p5_y
     name: "Zone 2 P5 Y"
@@ -1470,6 +1510,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p6_y
     name: "Zone 2 P6 Y"
@@ -1495,6 +1536,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p7_y
     name: "Zone 2 P7 Y"
@@ -1520,6 +1562,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone2_p8_y
     name: "Zone 2 P8 Y"
@@ -1584,6 +1627,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone3_p1_y
     name: "Zone 3 P1 Y"
@@ -1609,6 +1653,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone3_p2_y
     name: "Zone 3 P2 Y"
@@ -1709,6 +1754,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone3_p6_y
     name: "Zone 3 P6 Y"
@@ -1734,6 +1780,7 @@ number:
     optimistic: true
     restore_value: true
     mode: box
+
   - platform: template
     id: zone3_p7_y
     name: "Zone 3 P7 Y"
@@ -1955,10 +2002,12 @@ number:
 
 binary_sensor:
   - platform: status
+    id: esp32_status
     name: "ESP32 | Status"
     entity_category: diagnostic
 
   - platform: template
+    id: any_presence
     name: "Any Presence"
     icon: mdi:home-account
     device_class: presence
@@ -1975,6 +2024,7 @@ binary_sensor:
       return (now - last_off) < (unsigned long)(id(presence_delay).state * 1000.0);
 
   - platform: template
+    id: any_movement
     name: "Any Movement"
     icon: mdi:motion-sensor
     device_class: motion
@@ -1985,6 +2035,7 @@ binary_sensor:
              (std::abs(id(target3_speed).state) > thresh);
 
   - platform: template
+    id: zone1_presence
     name: "Zone 1 Presence"
     icon: mdi:home-account
     device_class: presence
@@ -2027,6 +2078,7 @@ binary_sensor:
       return (now - last_off_1) < (unsigned long)(id(zone1_presence_delay).state * 1000.0);
 
   - platform: template
+    id: zone1_movement
     name: "Zone 1 Movement"
     icon: mdi:motion-sensor
     device_class: motion
@@ -2066,6 +2118,7 @@ binary_sensor:
       return mov;
 
   - platform: template
+    id: zone2_presence
     name: "Zone 2 Presence"
     icon: mdi:home-account
     device_class: presence
@@ -2108,6 +2161,7 @@ binary_sensor:
       return (now - last_off_2) < (unsigned long)(id(zone2_presence_delay).state * 1000.0);
 
   - platform: template
+    id: zone2_movement
     name: "Zone 2 Movement"
     icon: mdi:motion-sensor
     device_class: motion
@@ -2147,6 +2201,7 @@ binary_sensor:
       return mov;
 
   - platform: template
+    id: zone3_presence
     name: "Zone 3 Presence"
     icon: mdi:home-account
     device_class: presence
@@ -2189,6 +2244,7 @@ binary_sensor:
       return (now - last_off_3) < (unsigned long)(id(zone3_presence_delay).state * 1000.0);
 
   - platform: template
+    id: zone3_movement
     name: "Zone 3 Movement"
     icon: mdi:motion-sensor
     device_class: motion
@@ -2228,20 +2284,22 @@ binary_sensor:
       return mov;
 
 text_sensor:
-
   - platform: wifi_info
     ip_address:
+      id: esp32_ip_address
       name: "ESP32 | IP"
       entity_category: diagnostic
       icon: mdi:ip-network
 
   - platform: wifi_info
     ssid:
+      id: esp32_ssid
       name: "ESP32 | SSID"
       entity_category: diagnostic
       icon: mdi:wifi-settings
 
   - platform: template
+    id: esp32_wifi_strength
     name: "ESP32 | WiFi Strength"
     entity_category: diagnostic
     icon: "mdi:signal-cellular-3"
@@ -2256,9 +2314,11 @@ text_sensor:
 
   - platform: bme68x_bsec2
     iaq_accuracy:
+      id: bme_iaq_accuracy
       name: "BME688 IAQ Accuracy"
 
   - platform: template
+    id: bme_iaq_classification
     name: "BME688 IAQ Classification"
     icon: mdi:air-filter
     lambda: |-
