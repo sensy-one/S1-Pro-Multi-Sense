@@ -135,8 +135,10 @@ esp32:
     sdkconfig_options:
       CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE: n
 
-esp32_improv:
-  authorizer: none
+# The BLE software stack on the ESP32 consumes a significant amount of RAM on the device.
+
+# esp32_improv:
+#   authorizer: none
 
 improv_serial:
 
