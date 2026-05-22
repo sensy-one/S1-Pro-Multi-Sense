@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.2.18"  
+    version: "v1.2.19"  
 
   on_boot:
   - priority: 600
@@ -197,6 +197,20 @@ api:
 ota:
   - platform: web_server
     id: ota_web_server
+  - platform: http_request
+
+http_request:
+  timeout: 30s
+  watchdog_timeout: 60s
+  buffer_size_rx: 4096
+  buffer_size_tx: 1024
+
+update:
+  - platform: http_request
+    id: firmware_update
+    name: "ESP32 | Firmware Update"
+    source: https://github.com/sensy-one/S1-Pro-Multi-Sense/releases/latest/download/manifest.json
+    update_interval: 6h
 
 web_server:
   version: 3
