@@ -641,6 +641,7 @@ sensor:
     icon: mdi:counter
     id: all_targets_count
     unit_of_measurement: ""
+    state_class: measurement
     update_interval: 1s
     lambda: |-
       int count = 0;
@@ -654,6 +655,7 @@ sensor:
     icon: mdi:counter
     id: zone1_target_count
     unit_of_measurement: ""
+    state_class: measurement
     update_interval: 1s
     lambda: |-
       const int MAX_PTS = 8;
@@ -694,6 +696,7 @@ sensor:
     icon: mdi:counter
     id: zone2_target_count
     unit_of_measurement: ""
+    state_class: measurement
     update_interval: 1s
     lambda: |-
       const int MAX_PTS = 8;
@@ -734,6 +737,7 @@ sensor:
     icon: mdi:counter
     id: zone3_target_count
     unit_of_measurement: ""
+    state_class: measurement
     update_interval: 1s
     lambda: |-
       const int MAX_PTS = 8;
