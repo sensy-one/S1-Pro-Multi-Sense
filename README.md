@@ -1,22 +1,20 @@
 ## 🚀 Sensy-One S1 Pro Multi Sense
 
-The all-in-one open-source sensor designed for Home Assistant, refined through real-world user feedback.
+The all-in-one presence and environmental sensor for Homey Pro and Home Assistant.
 
 ![Sensy-One Banner](https://github.com/sensy-one/S1-Pro-Multi-Sense/blob/main/assets/images/S1_Pro_Multi_Sense.jpg)
 
-The Sensy-One S1 Pro Multi Sense is an open-source presence and environmental sensor, built from the ground up with Home Assistant in mind. After extensive prototyping, firmware tuning, and valuable input from users and smart home enthusiasts, the S1 Pro brings together reliable presence detection, real-time air quality monitoring, and ambient light sensing — all in one compact, Home Assistant-ready device. [Explore on YouTube](https://www.youtube.com/watch?v=s2bCj49uFjw)
+S1 Pro combines presence detection, air-quality monitoring and ambient light sensing in one compact device. It connects locally to Homey Pro or Home Assistant through ESPHome. [Explore on YouTube](https://www.youtube.com/watch?v=s2bCj49uFjw)
 
 ## ✨ Standout Specs
 
-**Seamless Home Assistant integration**
+**Local smart home integration**
 
-The S1 Pro is automatically discovered in Home Assistant via BLE Improv when Bluetooth is available. If not, it starts a wireless access point for quick setup — no additional tools required.
-
-> Note: BLE Improv is temporarily disabled due to performance issues.
+Connect S1 Pro to Homey Pro or Home Assistant over your local network using ESPHome. Follow [Getting Started](#-getting-started) to set up your connection and add the sensor.
 
 **Powered by ESP32-C3**
 
-At its core, the S1 Pro uses the ESP32-C3-MINI-1-N4 module — offering reliable Wi-Fi and Bluetooth Low Energy, low power consumption, and full support for ESPHome and Home Assistant integrations.
+At its core, the S1 Pro uses the ESP32-C3-MINI-1-N4 module — offering reliable Wi-Fi and Bluetooth Low Energy, low power consumption, and support for ESPHome, Homey Pro and Home Assistant.
 
 **Flexible USB-C power configuration (add-on)**
 
@@ -53,9 +51,11 @@ Each zone includes adjustable presence delay and motion threshold settings, and 
 
 A bright WS2812B RGB LED on the back of the PCB projects light onto the wall, ideal for alerts, presence indication, or ambient effects.
 
+In Homey, use the sensor's LED Flow cards to set power, colour and brightness. In Home Assistant, use its light entity.
+
 **Built-in buzzer**
 
-The integrated Huaneng MLT-8530 buzzer delivers clear audio alerts at 80–90 dB and 2.7 kHz, perfect for notifications, warnings, or presence feedback.
+The integrated Huaneng MLT-8530 buzzer delivers clear audio alerts at 80–90 dB and 2.7 kHz, perfect for notifications, warnings, or presence feedback. In Homey, use the buzzer Flow cards; in Home Assistant, use its switch.
 
 **Comprehensive environmental monitoring**
 
@@ -84,53 +84,70 @@ To get the most accurate presence and environmental readings, it's important to 
 - Avoid direct airflow from HVAC vents or fans to keep air quality readings stable
 - Mount away from heat sources to prevent temperature distortion
 
-## ⚡ From Power On to Home Assistant
+## ⚡ Getting Started
 
-Power the S1 Pro using any standard 5V USB-C power source.
-Once powered, it automatically begins looking for your Home Assistant system.
+### Connect to your network
 
-**If your Home Assistant setup supports Bluetooth (BLE):**
-- The S1 Pro will be automatically discovered under Devices & Services.
-- Click Add, enter your Wi-Fi credentials, and you're done.
+Power S1 Pro with a 5 V USB-C supply. On first setup, connect to its **I am Sensy!** Wi-Fi access point, open `http://192.168.4.1`, and save your 2.4 GHz Wi-Fi credentials.
 
-> Note: BLE Improv is temporarily disabled due to performance issues.
+BLE Improv is currently disabled; use the access point for setup.
 
-**If your system does not support Bluetooth:**
-- The sensor will start a Wi-Fi access point named I am Sensy!.
-- Connect to it and open `http://192.168.4.1` in your browser.
-- Enter your Wi-Fi details, click Save, and it will connect to your network.
-- The sensor will then show up in Home Assistant as a Discovered device.
+### Add to Homey Pro
 
-> Tip: Make sure your Wi-Fi is 2.4 GHz — 5 GHz is not supported.  
-For best results, use a dedicated IoT network to improve stability, make discovery easier, and enhance security.
+1. Install the [SENSY-ONE app](https://homey.app/en-nl/app/com.sensy-one/SENSY-ONE/test/).
+2. Make sure S1 Pro and Homey Pro are on the same local network.
+3. In Homey, select **Devices → + → SENSY-ONE → S1 Pro**, then choose your sensor.
+
+Measurements are available in Flows and Insights. Home Assistant is not required. The app is under review and can already be installed through the test link above.
+
+### Add to Home Assistant
+
+Once connected to your network, S1 Pro appears under **Settings → Devices & services**. Select the discovered ESPHome device and complete the setup.
 
 ## 🎛 Adjusting Sensor Offsets
 
-The S1 Pro allows you to fine-tune sensor readings directly from Home Assistant.
+Compare readings with a trusted reference after the sensor has warmed up.
 
-**Offsets are available for:**
-- Temperature (BME688 / SCD40)
-- Lux & UV index (LTR-390UV)
-
-**To calibrate:** 
-- Compare readings with a trusted external device.
-- Adjust the offset entities exposed by the S1 Pro in Home Assistant.
-- Changes apply instantly — no restart or YAML needed.
-
-> Tip: Let the sensor run for a few minutes before calibrating for the most stable results.
+- **Homey Pro:** open the sensor's advanced settings to adjust BME688/SCD40 temperature offsets and lux correction.
+- **Home Assistant:** adjust the temperature, lux or UV-index offset entities on the device page. UV index is not exposed in Homey.
 
 ## 🌬 CO₂ Calibration (SCD40 Add-on)
 
-For faster or more precise calibration, you can use the Forced Calibration button in Home Assistant.
+In Homey, use the SCD40 calibration control in the sensor's advanced settings and follow its instructions.
 
-**To calibrate manually:**
+**In Home Assistant:**
 - Place the sensor in fresh outdoor air.
 - In Home Assistant, click Forced Calibration on the S1 Pro.
 - The sensor will set a new baseline of 425 ppm (current global outdoor CO₂ level).
 
 > Tip: Only perform this when you're confident the air is clean and stable. (The BME688 calibrates itself automatically — no user action required.)
 
-## 📊 Real-Time Visualization with Plotly Graph Card
+## 🧭 Get in the Zone
+
+The S1 Pro now supports up to 3 detection zones and 1 exclusion zone — all configurable as custom polygons with up to 8 points each.
+
+### Homey Pro
+
+Open **Settings → Apps → SENSY-ONE → App settings** in Homey. Select your sensor, draw the zones and save. Presence and target-count readings appear for each configured detection zone.
+
+### Home Assistant
+
+> Note: A new and improved Zone Editor Add-on for Home Assistant is now available!
+You can find it [here](https://github.com/sensy-one/home-assistant-addons) and follow the installation guide. The steps below describe the manual (legacy) method, which you can still use if you prefer.
+
+**How to use the Zone Editor**
+- Download the [zone_editor.html](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/config) file.
+- Open the Zone Editor on a desktop computer using any modern browser (Chrome, Edge, Firefox, Safari).
+- In the Zone Editor, enter the IP address of your S1 Pro sensor (the same one you see in Home Assistant).
+- Select which zone you want to configure (Zone 1, Zone 2, Zone 3, or Exclusion).
+- Click directly on the radar canvas to place up to 8 points and draw the shape of your zone.
+- Save your configuration — it will be applied immediately to your device.
+
+> Note: Make sure your desktop is connected to the same network as your Home Assistant / Sensor.
+
+> Tip: If you run into trouble, you can always have a look at the [YouTube video](https://www.youtube.com/watch?v=raLACrPG8EM) for guidance.
+
+## 📊 Home Assistant: Plotly Graph Card
 
 Visualize live presence data from the S1 Pro directly in your Home Assistant dashboard.  
 The Plotly Graph Card shows an interactive view of target positions, movement speed, and your defined zones — giving you instant insight into room activity.
@@ -155,26 +172,6 @@ The Plotly Graph Card shows an interactive view of target positions, movement sp
 > Tip: Use Ctrl+F (Windows) or Cmd+F (Mac) to quickly find and replace all instances.
 > Note: Seeing "Visual editor not supported"? That’s normal for custom cards — you can safely ignore it.
 
-## 🧭 Get in the Zone
-
-The S1 Pro now supports up to 3 detection zones and 1 exclusion zone — all configurable as custom polygons with up to 8 points each.
-Instead of adjusting multiple number entities, you can now set zones visually using the Zone Editor tool:
-
-> Note: A new and improved Zone Editor Add-on for Home Assistant is now available!
-You can find it [here](https://github.com/sensy-one/home-assistant-addons) and follow the installation guide. The steps below describe the manual (legacy) method, which you can still use if you prefer.
-
-**How to use the Zone Editor**
-- Download the [zone_editor.html](https://github.com/sensy-one/S1-Pro-Multi-Sense/tree/main/assets/config) file.
-- Open the Zone Editor on a desktop computer using any modern browser (Chrome, Edge, Firefox, Safari).
-- In the Zone Editor, enter the IP address of your S1 Pro sensor (the same one you see in Home Assistant).
-- Select which zone you want to configure (Zone 1, Zone 2, Zone 3, or Exclusion).
-- Click directly on the radar canvas to place up to 8 points and draw the shape of your zone.
-- Save your configuration — it will be applied immediately to your device.
-
-> Note: Make sure your desktop is connected to the same network as your Home Assistant / Sensor.
-
-> Tip: If you run into trouble, you can always have a look at the [YouTube video](https://www.youtube.com/watch?v=raLACrPG8EM) for guidance.
-
 ## 🔄 Firmware on the Fly
 
 Keep your S1 Pro up to date with regular OTA updates.  
@@ -182,13 +179,14 @@ We continuously improve performance and add new features to keep your device rel
 
 **Install OTA Updates**
 - Download the latest OTA firmware from the [releases](https://github.com/sensy-one/S1-Pro-Multi-Sense/releases).
-- In Home Assistant, go to Devices and Services, ESPHome.
-- Select your S1 Pro and click Visit under Device Info to open the web interface. 
+- Open the sensor's local IP address in your browser. In Home Assistant, you can also use **Visit** on its ESPHome device page.
 - Scroll down to OTA Update, choose the firmware file, and click Update.
 
 > Tip: If the page times out during upload, just refresh the page or try again.
 
 ## 🔧 Troubleshooting
+
+**Not found in Homey?** Check that the sensor and Homey Pro are on the same local network and that mDNS discovery is allowed.
 
 If your sensor isn’t behaving as expected, a factory reset can help you start fresh.
 
