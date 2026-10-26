@@ -66,9 +66,13 @@ Equipped with the advanced Bosch BME688 sensor, the S1 Pro delivers real-time in
 For even more accurate measurements, the S1 Pro supports an optional Sensirion SCD40 module.
 This add-on measures CO₂, humidity, and temperature with higher precision, and connects directly to the main PCB via a Molex Mezzanine connector — no soldering required.
 
-**Ambient light and UV sensing**
+The SCD40 add-on entities are disabled by default in Home Assistant, including the calibration buttons and temperature offset. If the add-on is installed, enable its entities on the S1 Pro device page. Home Assistant preserves existing enabled/disabled settings and may restore them after a device is removed and added again, so disable unused SCD40 entities manually if needed. The built-in BME688 entities remain enabled; IAQ Classification reports `unknown` until a valid IAQ measurement is available.
 
-The integrated Lite-On LTR-390UV sensor measures both illuminance (Lux) and UV index (UVI), enabling smart lighting control and sun exposure awareness based on real-time ambient conditions.
+Ambient light and UV sensing
+
+Earlier S1 Pro units use the Lite-On LTR-390UV with illuminance (Lux) and UV index (UVI); newer units use the LTR-F216A with illuminance only. At startup, the firmware reads the sensor's full PART_ID at I²C address 0x53, register 0x06. UVI is exposed only for the documented LTR390 ID (0xB2); the LTR-F216A (0xB1), an unrecognized ID, or a failed read hides UVI and disables UV sampling. The existing lux calculation, calibration, entity names, and IDs are preserved. The UV-offset control is unchanged.
+
+If Home Assistant already registered a UVI entity on a unit without UV hardware, that old entry may remain unavailable after updating. Disable that entry once in Home Assistant; newly discovered units without UV hardware will not offer a UVI entity.
 
 ## 📍 Best Placement Practices
 

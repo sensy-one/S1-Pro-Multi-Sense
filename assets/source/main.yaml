@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.2.21"  
+    version: "v1.2.22"
 
   on_boot:
   - priority: 600
@@ -18,6 +18,21 @@ esphome:
                 effect: "Purple Breathing"
           else:
             - lambda: '/* NaN */'
+
+  - priority: 700
+    then:
+      - lambda: |-
+          // Run after I2C setup (1000), before LTR390 (600) and the API (200).
+          // Full PART_ID: LTR390 = 0xB2, LTR-F216A = 0xB1.
+          const uint8_t part_id_register = 0x06;
+          uint8_t part_id = 0;
+          const auto error = id(i2c_bus).write_readv(
+              0x53, &part_id_register, 1, &part_id, 1);
+          const bool has_uv = error == i2c::ERROR_OK && part_id == 0xB2;
+          if (!has_uv) {
+            id(ltr390_uv_raw).set_internal(true);
+            id(ltr390_sensor).set_uvi_sensor(nullptr);
+          }
 
   - priority: -10
     then:
@@ -347,6 +362,7 @@ button:
 
   - platform: template
     name: "SCD40 | Forced Calibration"
+    disabled_by_default: true
     id: scd40_forced_calibration_btn
     icon: "mdi:tune"
     entity_category: config
@@ -357,6 +373,7 @@ button:
 
   - platform: template
     name: "SCD40 | Factory Reset"
+    disabled_by_default: true
     id: scd40_factory_reset_btn
     icon: "mdi:factory"
     entity_category: config
@@ -783,6 +800,7 @@ sensor:
     update_interval: 5s      
     co2:
       name: "SCD40 CO₂ Concentration"
+      disabled_by_default: true
       id: scd_co2
       icon: "mdi:molecule-co2"
       filters:
@@ -803,6 +821,7 @@ sensor:
       state_class: measurement
     temperature:
       name: "SCD40 Temperature"
+      disabled_by_default: true
       id: scd40_temp
       unit_of_measurement: "°C"
       icon: "mdi:thermometer"
@@ -820,6 +839,7 @@ sensor:
             return {};
     humidity:
       name: "SCD40 Humidity"
+      disabled_by_default: true
       id: scd40_rh
       unit_of_measurement: "%"
       icon: "mdi:water-percent"
@@ -952,6 +972,7 @@ sensor:
             return {};
 
   - platform: ltr390
+    id: ltr390_sensor
     i2c_id: i2c_bus
     update_interval: 5s
 
@@ -2074,6 +2095,7 @@ number:
   - platform: template
     id: scd40_temp_offset
     name: "SCD40 Temp Offset"
+    disabled_by_default: true
     icon: mdi:thermometer-plus
     unit_of_measurement: "°C"
     min_value: -50
@@ -2482,6 +2504,10 @@ text_sensor:
     name: "BME688 IAQ Classification"
     icon: mdi:air-filter
     lambda: |-
+      // No valid IAQ state yet; never convert NaN to an integer.
+      if (!id(bme_iaq).has_state() || !std::isfinite(id(bme_iaq).state)) {
+        return {"unknown"};
+      }
       if ( int(id(bme_iaq).state) <= 50) {
         return {"Excellent"};
       }
