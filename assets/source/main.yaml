@@ -170,7 +170,7 @@ esp32:
 
 # The BLE software stack on the ESP32 consumes a significant amount of RAM on the device.
 
-esp32_improv:
+improv_ble:
    authorizer: none
 
 esp32_ble_tracker:
