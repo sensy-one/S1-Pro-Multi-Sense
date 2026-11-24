@@ -4,7 +4,7 @@ esphome:
   name_add_mac_suffix: true
   project:
     name: "Sensy-One.S1 Pro Multi Sense"
-    version: "v1.2.22"
+    version: "v1.2.23"
 
   on_boot:
   - priority: 600
@@ -195,6 +195,7 @@ captive_portal:
 
 logger:
   level: NONE
+  boot_log_level: NONE
   baud_rate: 11520
 
 api:
